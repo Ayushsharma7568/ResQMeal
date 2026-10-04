@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # MongoDB Database Service
+  mongodb:
+    image: mongo:7-jammy
+    container_name: dontwasteit-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: dontwasteit
+    volumes:
+      - mongo_data:/data/db
+
+  # Node/Express Backend API Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dontwasteit-backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGODB_URI: mongodb://mongodb:27017/dontwasteit
+      JWT_SECRET: production_super_secret_jwt_key_dontwasteit_2026
+      CORS_ORIGIN: "*"
+    depends_on:
+      - mongodb
+
+  # React Frontend (Nginx SPA) Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: dontwasteit-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo_data:
