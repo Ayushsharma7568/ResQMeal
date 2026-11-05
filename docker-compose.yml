@@ -1,19 +1,29 @@
-version: '3.8'
-
 services:
+  # ----------------------------------------------------
   # MongoDB Database Service
+  # ----------------------------------------------------
   mongodb:
     image: mongo:7-jammy
     container_name: dontwasteit-mongodb
     restart: always
     ports:
-      - "27017:27017"
+      - "${MONGO_PORT:-27017}:27017"
     environment:
-      MONGO_INITDB_DATABASE: dontwasteit
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-dontwasteit}
     volumes:
       - mongo_data:/data/db
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
+  # ----------------------------------------------------
   # Node/Express Backend API Service
+  # ----------------------------------------------------
   backend:
     build:
       context: ./backend
@@ -21,17 +31,23 @@ services:
     container_name: dontwasteit-backend
     restart: always
     ports:
-      - "5000:5000"
+      - "${BACKEND_PORT:-5000}:5000"
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-production}
       PORT: 5000
-      MONGODB_URI: mongodb://mongodb:27017/dontwasteit
-      JWT_SECRET: production_super_secret_jwt_key_dontwasteit_2026
-      CORS_ORIGIN: "*"
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongodb:27017/dontwasteit}
+      JWT_SECRET: ${JWT_SECRET:-production_super_secret_jwt_key_dontwasteit_2026}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
+    networks:
+      - app-network
 
+  # ----------------------------------------------------
   # React Frontend (Nginx SPA) Service
+  # ----------------------------------------------------
   frontend:
     build:
       context: ./frontend
@@ -39,9 +55,16 @@ services:
     container_name: dontwasteit-frontend
     restart: always
     ports:
-      - "80:80"
+      - "${FRONTEND_PORT:-80}:80"
     depends_on:
       - backend
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   mongo_data:
+    driver: local

@@ -1,28 +1,32 @@
-# Production Dockerfile for Backend API
-FROM node:20-alpine AS builder
+# ----------------------------------------------------
+# Production Dockerfile for Node.js/Express Backend
+# ----------------------------------------------------
+FROM node:20-alpine AS base
 
 WORKDIR /app
 
-# Copy dependency manifests
+# Install dependencies (only production)
 COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 
-# Install dependencies
-RUN npm ci --only=production
-
-# Copy source code
+# Copy application source code
 COPY . .
 
-# Expose API port
+# Ensure files are owned by non-root node user
+RUN chown -R node:node /app
+
+# Expose backend API port
 EXPOSE 5000
 
-# Set environment variables
+# Set production environment variables
 ENV NODE_ENV=production
+ENV PORT=5000
 
-# Run non-root user for security
+# Switch to non-root user for security
 USER node
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+# Container healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:5000/api/health || exit 1
 
 # Start production server
