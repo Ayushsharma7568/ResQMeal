@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import User from '../models/User.js';
+import { seedUsers, seedFoodListings } from '../../seed.js';
 
 dotenv.config();
 
@@ -19,6 +19,10 @@ const connectDB = async () => {
     const conn = await mongoose.connect(process.env.MONGODB_URI, options);
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     console.log(`📊 Database: ${conn.connection.name}`);
+
+    // Auto-seed demo users and Bangalore food listings if not already present
+    await seedUsers();
+    await seedFoodListings();
   } catch (error) {
     console.error(`❌ Primary MongoDB Connection Error: ${error.message}`);
     console.log('⚠️ Falling back to in-memory database for development...');
@@ -28,20 +32,9 @@ const connectDB = async () => {
       await mongoose.connect(mongoServer.getUri());
       console.log('✅ Connected to In-Memory MongoDB');
       
-      // Seed demo users
-      const demoUsers = [
-        { name: 'Demo Provider', email: 'provider@dontwasteit.demo', phone: '9876543210', password: 'Demo@123', role: 'FOOD_PROVIDER', isActive: true },
-        { name: 'Demo Seeker', email: 'seeker@dontwasteit.demo', phone: '9876543211', password: 'Demo@123', role: 'FOOD_SEEKER', isActive: true },
-        { name: 'Demo Volunteer', email: 'volunteer@dontwasteit.demo', phone: '9876543212', password: 'Demo@123', role: 'VOLUNTEER', isActive: true },
-        { name: 'Demo Admin', email: 'admin@dontwasteit.demo', phone: '9876543213', password: 'Demo@123', role: 'ADMIN', isActive: true }
-      ];
-      
-      for (const u of demoUsers) {
-        if (!(await User.findOne({ email: u.email }))) {
-          await User.create(u);
-        }
-      }
-      console.log('🌱 Demo users seeded successfully.');
+      await seedUsers();
+      await seedFoodListings();
+      console.log('🌱 Demo users and Bangalore mock food listings seeded successfully.');
     } catch (fallbackError) {
       console.error(`❌ Fallback MongoDB Error: ${fallbackError.message}`);
       process.exit(1);
