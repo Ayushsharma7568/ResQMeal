@@ -49,8 +49,8 @@ export const VolunteerDashboard = () => {
     );
   };
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const fetchData = useCallback(async (isInitial = false) => {
+    if (isInitial) setLoading(true);
     try {
       const params = {};
       if (volunteerLocation) {
@@ -71,12 +71,31 @@ export const VolunteerDashboard = () => {
     } catch (err) {
       setToast({ message: err.message || 'Failed to load delivery tasks', type: 'error' });
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
   }, [volunteerLocation, maxDistanceFilter, sortByNearest]);
 
+  // Initial fetch
   useEffect(() => {
-    fetchData();
+    fetchData(true);
+  }, [fetchData]);
+
+  // Background polling every 5s to keep available and assigned tasks synced
+  // Never sets loading=true during polling so cards and buttons remain stable without flickering
+  useEffect(() => {
+    const timer = setInterval(() => {
+      fetchData(false);
+    }, 5000);
+
+    const handleFocus = () => {
+      fetchData(false);
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [fetchData]);
 
   // Listen for sidebar tab-change events
@@ -475,7 +494,7 @@ export const VolunteerDashboard = () => {
                   <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f766e', marginBottom: '0.5rem' }}>
                     Delivery Workflow: {task.status}
                   </div>
-                  <StatusTimeline currentStatus={task.status} />
+                  <StatusTimeline currentStatus={task.status} delivery={task} />
                 </div>
 
                 {/* Location Details */}
@@ -527,17 +546,37 @@ export const VolunteerDashboard = () => {
                 )}
 
                 {/* Workflow Actions */}
-                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-                  {task.status === 'ASSIGNED' && (
-                    <button className="btn btn-primary hover-pop" onClick={() => handleMarkPickedUp(task._id)} disabled={actionLoading}>
-                      <Truck size={16} /> Mark Food as Picked Up
+                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  {(!task.volunteerId || task.status === 'UNASSIGNED') && (
+                    <button
+                      className="btn btn-primary hover-pop btn-shimmer"
+                      onClick={() => handleAcceptTask(task._id)}
+                      disabled={actionLoading}
+                    >
+                      <Truck size={16} /> ✋ Accept Pickup — Assign to Me
                     </button>
                   )}
 
-                  {task.status === 'PICKED_UP' && (
-                    <button className="btn btn-primary hover-pop" onClick={() => handleMarkDelivered(task._id)} disabled={actionLoading} style={{ backgroundColor: '#059669' }}>
-                      <PackageCheck size={16} /> Mark Food as Delivered
+                  {task.status === 'ASSIGNED' && (
+                    <button className="btn btn-primary hover-pop btn-shimmer" onClick={() => handleMarkPickedUp(task._id)} disabled={actionLoading}>
+                      <Truck size={16} /> Mark Food as Picked Up (In Transit)
                     </button>
+                  )}
+
+                  {['PICKED_UP', 'IN_TRANSIT'].includes(task.status) && (
+                    <>
+                      <span style={{ fontSize: '0.8rem', color: '#0f766e', background: '#ccfbf1', padding: '0.35rem 0.75rem', borderRadius: '8px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Truck size={14} /> In Transit to Seeker
+                      </span>
+                      <button
+                        className="btn btn-primary hover-pop btn-shimmer"
+                        onClick={() => handleMarkDelivered(task._id)}
+                        disabled={actionLoading}
+                        style={{ backgroundColor: '#059669', borderColor: '#059669' }}
+                      >
+                        <PackageCheck size={16} /> Mark Food as Delivered
+                      </button>
+                    </>
                   )}
 
                   {task.status === 'DELIVERED' && (

@@ -269,8 +269,33 @@ export const SeekerDashboard = () => {
 
   const geoListings = listings.filter(l => l.pickupLat && l.pickupLng);
 
-  const activeClaims = myClaims.filter(c => ['PENDING', 'APPROVED'].includes(c.status));
-  const completedClaims = myClaims.filter(c => c.status === 'COMPLETED');
+  // Active Claims: Count all non-completed and non-cancelled claims
+  // (including statuses: PENDING, ACCEPTED, APPROVED, ASSIGNED, PICKED_UP, IN_TRANSIT, DELIVERED)
+  const isClaimActive = (claim) => {
+    if (!claim) return false;
+    const claimStatus = String(claim.status || '').toUpperCase();
+    if (['COMPLETED', 'CANCELLED', 'CANCELED', 'REJECTED'].includes(claimStatus)) {
+      return false;
+    }
+    const del = deliveriesMap[claim._id];
+    if (del) {
+      const delStatus = String(del.status || '').toUpperCase();
+      if (['COMPLETED', 'CANCELLED', 'CANCELED'].includes(delStatus)) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const activeClaims = myClaims.filter(isClaimActive);
+
+  // Completed Claims
+  const completedClaims = myClaims.filter(claim => {
+    const claimStatus = String(claim.status || '').toUpperCase();
+    if (claimStatus === 'COMPLETED') return true;
+    const del = deliveriesMap[claim._id];
+    return del && String(del.status || '').toUpperCase() === 'COMPLETED';
+  });
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -306,9 +331,9 @@ export const SeekerDashboard = () => {
             iconBg: 'rgba(204, 251, 241, 0.8)'
           },
           {
-            label: 'My Active Claims',
+            label: 'Active Claims',
             value: activeClaims.length,
-            sub: 'Pending or approved',
+            sub: 'Non-completed & in-progress',
             icon: <Heart size={22} color="#d97706" />,
             variant: 'amber',
             iconBg: 'rgba(254, 243, 199, 0.8)'
@@ -689,7 +714,7 @@ export const SeekerDashboard = () => {
                     </button>
                   </div>
 
-                  {claim.status === 'APPROVED' && (
+                  {(claim.status !== 'PENDING' || delivery) && (
                     <div style={{ marginTop: '1rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                         <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: '#0f766e', margin: 0 }}>
