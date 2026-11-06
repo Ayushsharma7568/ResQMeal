@@ -456,14 +456,10 @@ export const VolunteerDashboard = () => {
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
-                className="dash-scrollable-panel"
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '1.25rem',
-                  maxHeight: 'calc(100vh - 260px)',
-                  minHeight: '400px',
-                  overflowY: 'auto'
+                  gap: '1.25rem'
                 }}
               >
                 {availableTasks.map((task, idx) => (
@@ -492,9 +488,37 @@ export const VolunteerDashboard = () => {
 
                     {/* Card Body */}
                     <div className="dash-food-card-body" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                      <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0, lineHeight: 1.3 }}>
-                        {task.foodListingId?.title || 'Food Surplus Pickup'}
-                      </h3>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
+                        <div>
+                          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: 0, lineHeight: 1.3 }}>
+                            {task.foodListingId?.title || 'Food Surplus Pickup'}
+                          </h3>
+                          <span style={{ fontSize: '0.78rem', color: '#0f766e', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.25rem' }}>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#059669', display: 'inline-block' }} /> Ready for Immediate Pickup
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm hover-pop btn-shimmer"
+                          style={{
+                            flexShrink: 0,
+                            padding: '0.45rem 0.85rem',
+                            fontSize: '0.82rem',
+                            fontWeight: 800,
+                            background: acceptingTaskId === task._id ? '#94a3b8' : '#0f766e',
+                            boxShadow: '0 2px 8px rgba(15, 118, 110, 0.25)'
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAcceptTask(task._id);
+                          }}
+                          disabled={actionLoading}
+                          data-testid={`top-accept-btn-${task._id}`}
+                          aria-label="Accept Pickup"
+                        >
+                          {acceptingTaskId === task._id ? 'Assigning...' : 'Accept Pickup'}
+                        </button>
+                      </div>
 
                       <div style={{ backgroundColor: '#f8fafc', padding: '0.85rem', borderRadius: '10px', fontSize: '0.82rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', border: '1px solid #e2e8f0' }}>
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
@@ -525,18 +549,18 @@ export const VolunteerDashboard = () => {
                       </div>
 
                       {/* Unconditional Accept Pickup — Assign to Me Button */}
-                      <div style={{ marginTop: '0.25rem', position: 'relative', zIndex: 10 }}>
+                      <div style={{ marginTop: '0.35rem', position: 'relative', zIndex: 10 }}>
                         <button
                           type="button"
-                          className="btn btn-primary btn-sm hover-pop btn-shimmer"
+                          className="btn btn-primary hover-pop btn-shimmer"
                           style={{
                             width: '100%',
                             background: acceptingTaskId === task._id
                               ? '#94a3b8'
                               : 'linear-gradient(135deg, #0f766e 0%, #059669 100%)',
                             color: '#ffffff',
-                            padding: '0.75rem 1rem',
-                            fontSize: '0.9rem',
+                            padding: '0.85rem 1.25rem',
+                            fontSize: '0.95rem',
                             fontWeight: 800,
                             letterSpacing: '0.01em',
                             display: 'flex',
@@ -546,7 +570,7 @@ export const VolunteerDashboard = () => {
                             borderRadius: '10px',
                             border: 'none',
                             cursor: actionLoading ? 'not-allowed' : 'pointer',
-                            boxShadow: '0 4px 12px rgba(15, 118, 110, 0.25)',
+                            boxShadow: '0 4px 14px rgba(15, 118, 110, 0.3)',
                             position: 'relative',
                             zIndex: 10
                           }}
@@ -561,7 +585,7 @@ export const VolunteerDashboard = () => {
                           {acceptingTaskId === task._id ? (
                             <><Clock size={16} className="spin-animation" /> Assigning to You...</>
                           ) : (
-                            <><Truck size={17} /> ✋ Accept Pickup — Assign to Me</>
+                            <><Truck size={18} /> ✋ Accept Pickup — Assign to Me</>
                           )}
                         </button>
                       </div>
@@ -610,14 +634,15 @@ export const VolunteerDashboard = () => {
                   <MapView
                     listings={mapListings}
                     userLocation={volunteerLocation}
-                    onSelectListing={(task) => handleAcceptTask(task._id)}
+                    onListingClick={(task) => handleAcceptTask(task._id)}
+                    actionLabel="✋ Accept Pickup"
                     height="440px"
                   />
                 )}
               </div>
 
               <div style={{ marginTop: '1rem', padding: '0.85rem', background: '#f8fafc', borderRadius: '10px', fontSize: '0.8rem', color: '#64748b', lineHeight: 1.5 }}>
-                <strong style={{ color: '#0f172a' }}>💡 Tip:</strong> Click a map marker to accept that pickup task instantly.
+                <strong style={{ color: '#0f172a' }}>💡 Tip:</strong> Click any map marker popup to accept that pickup task instantly.
                 {volunteerLocation && <span style={{ color: '#0f766e', fontWeight: 700 }}> Your location is active.</span>}
               </div>
             </div>
@@ -628,6 +653,46 @@ export const VolunteerDashboard = () => {
       {/* ── MY ASSIGNED DELIVERIES TAB ────────────────────────────────── */}
       {activeTab === 'my_tasks' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Proactive banner guiding volunteer to Available Pickups if queue has open tasks */}
+          {availableTasks.length > 0 && (
+            <div
+              className="hover-lift"
+              style={{
+                background: 'linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%)',
+                border: '1.5px solid #5eead4',
+                borderRadius: '14px',
+                padding: '1.1rem 1.5rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '1rem',
+                flexWrap: 'wrap',
+                boxShadow: '0 4px 14px rgba(15, 118, 110, 0.08)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#0f766e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Package size={20} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.96rem' }}>
+                    {availableTasks.length} Available Pickup {availableTasks.length === 1 ? 'Task' : 'Tasks'} Waiting!
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#0f766e', fontWeight: 600 }}>
+                    Surplus meals are ready for collection and delivery in your area.
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('available')}
+                className="btn btn-primary btn-sm hover-pop btn-shimmer"
+                style={{ padding: '0.6rem 1.2rem', fontWeight: 800, fontSize: '0.88rem' }}
+              >
+                <Truck size={16} /> View & Accept Pickups ({availableTasks.length}) →
+              </button>
+            </div>
+          )}
           {myTasks.length > 0 ? (
             myTasks.map((task) => (
               <div key={task._id} className="dash-section-card hover-lift" style={{ padding: '1.75rem' }}>

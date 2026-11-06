@@ -78,7 +78,10 @@ export const MapView = ({
   height = '420px',
   userLocation = null,
   onListingClick = null,
+  onSelectListing = null,
+  actionLabel = 'Claim →',
 }) => {
+  const handleAction = onListingClick || onSelectListing;
   const geoListings = listings.filter(
     l => l.pickupLat !== undefined && l.pickupLat !== null && !isNaN(l.pickupLat) &&
          l.pickupLng !== undefined && l.pickupLng !== null && !isNaN(l.pickupLng)
@@ -160,9 +163,9 @@ export const MapView = ({
                   }}>
                     {listing.priceType === 'FREE' ? '🟢 FREE' : `₹${listing.price}`}
                   </span>
-                  {onListingClick && (
+                  {handleAction && (
                     <button
-                      onClick={() => onListingClick(listing)}
+                      onClick={() => handleAction(listing)}
                       style={{
                         fontSize: '0.75rem',
                         fontWeight: 700,
@@ -174,7 +177,7 @@ export const MapView = ({
                         cursor: 'pointer'
                       }}
                     >
-                      Claim →
+                      {actionLabel}
                     </button>
                   )}
                 </div>

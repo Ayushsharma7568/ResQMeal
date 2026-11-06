@@ -1797,11 +1797,8 @@ h1, h2, h3, h4, h5, h6 {
    ======================================== */
 
 .dash-scrollable-panel {
-  max-height: 600px;
-  overflow-y: auto;
+  overflow-y: visible;
   padding-right: 0.25rem;
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
 }
 
 .dash-scrollable-panel::-webkit-scrollbar {
