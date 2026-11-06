@@ -476,10 +476,31 @@ export const cancelClaim = async (req, res) => {
     claim.status = 'CANCELLED';
     await claim.save();
 
-    // If claim was approved, set listing status back to AVAILABLE
+    // Cascading Cancellation: locate any associated Delivery record linked via foodClaimId
+    const linkedDelivery = await Delivery.findOne({ foodClaimId: claim._id });
+    if (linkedDelivery) {
+      const prevVolunteerId = linkedDelivery.volunteerId;
+      linkedDelivery.status = 'CANCELLED';
+      linkedDelivery.volunteerId = null;
+      await linkedDelivery.save();
+
+      // Notify assigned volunteer if task was already claimed
+      if (prevVolunteerId) {
+        sendNotification({
+          recipientId: prevVolunteerId,
+          type: 'DELIVERY_CANCELLED',
+          title: 'Delivery Task Cancelled',
+          message: 'The food claim for this delivery was cancelled by the seeker.',
+          relatedEntityType: 'Delivery',
+          relatedEntityId: linkedDelivery._id
+        }).catch(() => {});
+      }
+    }
+
+    // If claim was approved, restore listing status back to AVAILABLE
     if (wasApproved) {
       const listing = await FoodListing.findById(claim.foodListingId);
-      if (listing && listing.status === 'CLAIMED') {
+      if (listing && (listing.status === 'CLAIMED' || listing.status === 'PICKUP_ASSIGNED')) {
         listing.status = 'AVAILABLE';
         await listing.save();
       }

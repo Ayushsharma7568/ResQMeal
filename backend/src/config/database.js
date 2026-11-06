@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import { seedUsers, seedFoodListings, seedDeliveries } from '../../seed.js';
+import { seedUsers, seedFoodListings, seedDeliveries, cleanupOrphanedDeliveries } from '../../seed.js';
 
 dotenv.config();
 
@@ -20,10 +20,11 @@ const connectDB = async () => {
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     console.log(`📊 Database: ${conn.connection.name}`);
 
-    // Auto-seed demo users, Bangalore food listings, and default unassigned deliveries if not present
+    // Auto-seed demo users, Bangalore food listings, default unassigned deliveries if not present, and cleanup orphaned deliveries
     await seedUsers();
     await seedFoodListings();
     await seedDeliveries();
+    await cleanupOrphanedDeliveries();
   } catch (error) {
     console.error(`❌ Primary MongoDB Connection Error: ${error.message}`);
     console.log('⚠️ Falling back to in-memory database for development...');
@@ -36,6 +37,7 @@ const connectDB = async () => {
       await seedUsers();
       await seedFoodListings();
       await seedDeliveries();
+      await cleanupOrphanedDeliveries();
       console.log('🌱 Demo users, Bangalore mock food listings, and unassigned deliveries seeded successfully.');
     } catch (fallbackError) {
       console.error(`❌ Fallback MongoDB Error: ${fallbackError.message}`);

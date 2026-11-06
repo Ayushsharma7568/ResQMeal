@@ -97,12 +97,8 @@ export const getAvailableTasks = async (req, res) => {
     const { city, lat, lng, maxDistance, sortByDistance, page = 1, limit = 20, sort = '-createdAt' } = req.query;
 
     const filter = {
-      $or: [
-        { status: 'UNASSIGNED' },
-        { status: 'PENDING' },
-        { status: 'AWAITING_PICKUP' },
-        { volunteerId: null }
-      ]
+      status: { $in: ['UNASSIGNED', 'PENDING', 'AWAITING_PICKUP'] },
+      volunteerId: null
     };
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
@@ -110,11 +106,18 @@ export const getAvailableTasks = async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
 
     let deliveries = await Delivery.find(filter)
+      .populate('foodClaimId')
       .populate('foodListingId')
       .populate('providerId', 'name email phone')
       .populate('seekerId', 'name email phone')
       .sort(sort)
       .lean();
+
+    // Guardrail: Explicitly exclude deliveries where status is CANCELLED or linked foodClaimId is CANCELLED
+    deliveries = deliveries.filter(d =>
+      d.status !== 'CANCELLED' &&
+      (!d.foodClaimId || d.foodClaimId.status !== 'CANCELLED')
+    );
 
     // Optional city filter on populated pickup details
     if (city) {
@@ -189,16 +192,35 @@ export const acceptTask = async (req, res) => {
       });
     }
 
-    // Atomic update to prevent multiple volunteers from accepting the same task
+    // 1. Verify delivery exists and check cancellation guardrail
+    const existing = await Delivery.findById(req.params.id).populate('foodClaimId');
+    if (!existing) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Delivery task not found'
+      });
+    }
+
+    if (existing.status === 'CANCELLED' || existing.foodClaimId?.status === 'CANCELLED') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cannot accept or update a delivery for a cancelled order'
+      });
+    }
+
+    // 2. Check if already assigned to another volunteer or not in ready state
+    if (existing.volunteerId !== null || !['UNASSIGNED', 'PENDING', 'AWAITING_PICKUP'].includes(existing.status)) {
+      return res.status(409).json({
+        status: 'error',
+        message: `Task cannot be accepted — current status is '${existing.status}' and may already be assigned to another volunteer`
+      });
+    }
+
+    // 3. Atomic update to prevent multiple volunteers from accepting the same task
     const delivery = await Delivery.findOneAndUpdate(
       {
         _id: req.params.id,
-        $or: [
-          { status: 'UNASSIGNED' },
-          { status: 'PENDING' },
-          { status: 'AWAITING_PICKUP' },
-          { volunteerId: null }
-        ],
+        status: { $in: ['UNASSIGNED', 'PENDING', 'AWAITING_PICKUP'] },
         volunteerId: null
       },
       {
@@ -212,17 +234,9 @@ export const acceptTask = async (req, res) => {
     );
 
     if (!delivery) {
-      // Check if task exists to differentiate 404 vs 409
-      const existing = await Delivery.findById(req.params.id);
-      if (!existing) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Delivery task not found'
-        });
-      }
       return res.status(409).json({
         status: 'error',
-        message: `Task cannot be accepted — current status is '${existing.status}' and may already be assigned to another volunteer`
+        message: 'Task could not be assigned (may have been claimed by another volunteer)'
       });
     }
 
@@ -279,7 +293,7 @@ export const getMyAssignedTasks = async (req, res) => {
   try {
     const { status, page = 1, limit = 20, sort = '-createdAt' } = req.query;
 
-    const filter = { volunteerId: req.user._id };
+    const filter = { volunteerId: req.user._id, status: { $ne: 'CANCELLED' } };
     if (status) {
       filter.status = status;
     }
@@ -288,28 +302,33 @@ export const getMyAssignedTasks = async (req, res) => {
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
     const skip = (pageNum - 1) * limitNum;
 
-    const [deliveries, total] = await Promise.all([
-      Delivery.find(filter)
-        .populate('foodListingId')
-        .populate('providerId', 'name email phone')
-        .populate('seekerId', 'name email phone')
-        .sort(sort)
-        .skip(skip)
-        .limit(limitNum)
-        .lean(),
-      Delivery.countDocuments(filter)
-    ]);
+    let deliveries = await Delivery.find(filter)
+      .populate('foodClaimId')
+      .populate('foodListingId')
+      .populate('providerId', 'name email phone')
+      .populate('seekerId', 'name email phone')
+      .sort(sort)
+      .lean();
+
+    // Guardrail: Exclude cancelled tasks or deliveries linked to cancelled claims
+    deliveries = deliveries.filter(d =>
+      d.status !== 'CANCELLED' &&
+      (!d.foodClaimId || d.foodClaimId.status !== 'CANCELLED')
+    );
+
+    const total = deliveries.length;
+    const paginatedDeliveries = deliveries.slice(skip, skip + limitNum);
 
     res.status(200).json({
       status: 'success',
-      results: deliveries.length,
+      results: paginatedDeliveries.length,
       pagination: {
         page: pageNum,
         limit: limitNum,
         totalPages: Math.ceil(total / limitNum),
         totalResults: total
       },
-      data: { deliveries }
+      data: { deliveries: paginatedDeliveries }
     });
   } catch (error) {
     console.error('Get my assigned tasks error:', error);
@@ -332,11 +351,19 @@ export const markPickedUp = async (req, res) => {
       });
     }
 
-    const delivery = await Delivery.findById(req.params.id);
+    const delivery = await Delivery.findById(req.params.id).populate('foodClaimId');
     if (!delivery) {
       return res.status(404).json({
         status: 'error',
         message: 'Delivery task not found'
+      });
+    }
+
+    // Guardrail: Cannot accept or update a delivery for a cancelled order
+    if (delivery.status === 'CANCELLED' || delivery.foodClaimId?.status === 'CANCELLED') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cannot accept or update a delivery for a cancelled order'
       });
     }
 
@@ -408,11 +435,19 @@ export const markDelivered = async (req, res) => {
       });
     }
 
-    const delivery = await Delivery.findById(req.params.id);
+    const delivery = await Delivery.findById(req.params.id).populate('foodClaimId');
     if (!delivery) {
       return res.status(404).json({
         status: 'error',
         message: 'Delivery task not found'
+      });
+    }
+
+    // Guardrail: Cannot accept or update a delivery for a cancelled order
+    if (delivery.status === 'CANCELLED' || delivery.foodClaimId?.status === 'CANCELLED') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cannot accept or update a delivery for a cancelled order'
       });
     }
 
@@ -488,11 +523,19 @@ export const confirmReceipt = async (req, res) => {
       });
     }
 
-    const delivery = await Delivery.findById(req.params.id);
+    const delivery = await Delivery.findById(req.params.id).populate('foodClaimId');
     if (!delivery) {
       return res.status(404).json({
         status: 'error',
         message: 'Delivery task not found'
+      });
+    }
+
+    // Guardrail: Cannot accept or update a delivery for a cancelled order
+    if (delivery.status === 'CANCELLED' || delivery.foodClaimId?.status === 'CANCELLED') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cannot accept or update a delivery for a cancelled order'
       });
     }
 
@@ -673,11 +716,19 @@ export const updateDeliveryStatus = async (req, res) => {
       });
     }
 
-    const delivery = await Delivery.findById(req.params.id);
+    const delivery = await Delivery.findById(req.params.id).populate('foodClaimId');
     if (!delivery) {
       return res.status(404).json({
         status: 'error',
         message: 'Delivery task not found'
+      });
+    }
+
+    // Guardrail: Cannot accept or update a delivery for a cancelled order
+    if (delivery.status === 'CANCELLED' || delivery.foodClaimId?.status === 'CANCELLED') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cannot accept or update a delivery for a cancelled order'
       });
     }
 

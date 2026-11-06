@@ -270,6 +270,31 @@ export const seedDeliveries = async () => {
   return 1;
 };
 
+export const cleanupOrphanedDeliveries = async () => {
+  const cancelledClaims = await FoodClaim.find({ status: 'CANCELLED' }).select('_id');
+  const cancelledClaimIds = cancelledClaims.map(c => c._id);
+
+  if (cancelledClaimIds.length === 0) return 0;
+
+  const result = await Delivery.updateMany(
+    {
+      foodClaimId: { $in: cancelledClaimIds },
+      status: { $ne: 'CANCELLED' }
+    },
+    {
+      $set: {
+        status: 'CANCELLED',
+        volunteerId: null
+      }
+    }
+  );
+
+  if (result.modifiedCount > 0) {
+    console.log(`🧹 Cleaned up ${result.modifiedCount} orphaned delivery record(s) linked to cancelled claims.`);
+  }
+  return result.modifiedCount;
+};
+
 const run = async () => {
   try {
     console.log(`Connecting to MongoDB at: ${MONGODB_URI}...`);
@@ -287,6 +312,9 @@ const run = async () => {
 
     const deliveryCount = await seedDeliveries();
     console.log(`🌱 Delivery task seeding complete: ${deliveryCount} unassigned delivery task(s) seeded.`);
+
+    const cleanupCount = await cleanupOrphanedDeliveries();
+    console.log(`🧹 Orphaned deliveries cleanup complete: ${cleanupCount} delivery task(s) cleaned.`);
 
     // Verify
     const allUsers = await User.find({ email: { $in: demoUsers.map(d => d.email) } });
