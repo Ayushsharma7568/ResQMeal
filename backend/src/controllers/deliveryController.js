@@ -96,7 +96,14 @@ export const getAvailableTasks = async (req, res) => {
   try {
     const { city, lat, lng, maxDistance, sortByDistance, page = 1, limit = 20, sort = '-createdAt' } = req.query;
 
-    const filter = { status: 'UNASSIGNED' };
+    const filter = {
+      $or: [
+        { status: 'UNASSIGNED' },
+        { status: 'PENDING' },
+        { status: 'AWAITING_PICKUP' },
+        { volunteerId: null }
+      ]
+    };
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
@@ -186,7 +193,12 @@ export const acceptTask = async (req, res) => {
     const delivery = await Delivery.findOneAndUpdate(
       {
         _id: req.params.id,
-        status: 'UNASSIGNED',
+        $or: [
+          { status: 'UNASSIGNED' },
+          { status: 'PENDING' },
+          { status: 'AWAITING_PICKUP' },
+          { volunteerId: null }
+        ],
         volunteerId: null
       },
       {

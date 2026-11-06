@@ -13,6 +13,21 @@ import {
   ArrowRight, PackageCheck, AlertCircle, Phone, Navigation, Filter, Map as MapIcon, List
 } from 'lucide-react';
 
+// Helper to reliably check if a delivery has no volunteer assigned
+const isDeliveryUnassigned = (d) => {
+  if (!d) return false;
+  const vol = d.volunteer || d.volunteerId;
+  if (vol) {
+    if (typeof vol === 'string' && vol.trim().length > 0) return false;
+    if (typeof vol === 'object' && vol._id) return false;
+  }
+  const status = String(d.status || '').toUpperCase();
+  if (['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED', 'RECEIVED'].includes(status)) {
+    if (d.volunteer || d.volunteerId) return false;
+  }
+  return true;
+};
+
 export const VolunteerDashboard = () => {
   const [activeTab, setActiveTab] = useState('available'); // 'available' | 'my_tasks'
   const [availableTasks, setAvailableTasks] = useState([]);
@@ -66,8 +81,30 @@ export const VolunteerDashboard = () => {
         deliveryApi.getAvailableTasks(params),
         deliveryApi.getMyAssignedTasks()
       ]);
-      setAvailableTasks(availRes.data?.deliveries || []);
-      setMyTasks(myRes.data?.deliveries || []);
+
+      const rawAvailable = availRes.data?.deliveries || [];
+      const rawMy = myRes.data?.deliveries || [];
+
+      // Combine and deduplicate all deliveries returned
+      const deliveryMap = new Map();
+      [...rawAvailable, ...rawMy].forEach(item => {
+        if (item && item._id) {
+          deliveryMap.set(item._id.toString(), item);
+        }
+      });
+      const allUnique = Array.from(deliveryMap.values());
+
+      // Group into Unassigned Pickups:
+      // Any delivery without an assigned volunteer (!d.volunteer && !d.volunteerId)
+      // or with unassigned/pending status is reliably placed into availableTasks
+      const unassignedTasks = allUnique.filter(d => isDeliveryUnassigned(d));
+
+      // Group into Assigned Tasks:
+      // Deliveries with an assigned volunteer that are currently active
+      const assignedTasks = allUnique.filter(d => !isDeliveryUnassigned(d));
+
+      setAvailableTasks(unassignedTasks);
+      setMyTasks(assignedTasks);
     } catch (err) {
       setToast({ message: err.message || 'Failed to load delivery tasks', type: 'error' });
     } finally {
@@ -112,17 +149,26 @@ export const VolunteerDashboard = () => {
     return () => window.removeEventListener('dashboard-tab-change', handleTabChange);
   }, []);
 
-  // Accept Pickup Task
+  // Accept Pickup Task — Immediately updates state and refreshes without manual reload
   const handleAcceptTask = async (id) => {
     setAcceptingTaskId(id);
     setActionLoading(true);
     try {
-      await deliveryApi.acceptTask(id);
+      const res = await deliveryApi.acceptTask(id);
+      const acceptedDelivery = res.data?.data?.delivery || res.data?.delivery;
+
+      // Optimistically move task from available to my_tasks immediately
+      setAvailableTasks(prev => prev.filter(t => t._id !== id));
+      if (acceptedDelivery) {
+        setMyTasks(prev => [acceptedDelivery, ...prev.filter(t => t._id !== id)]);
+      }
+
       setToast({ message: 'Pickup task accepted! Added to your active deliveries.', type: 'success' });
       setActiveTab('my_tasks');
-      fetchData();
+      await fetchData(false);
     } catch (err) {
       setToast({ message: err.message || 'Failed to accept task (may be already claimed)', type: 'error' });
+      await fetchData(false);
     } finally {
       setActionLoading(false);
       setAcceptingTaskId(null);
@@ -547,7 +593,7 @@ export const VolunteerDashboard = () => {
 
                 {/* Workflow Actions */}
                 <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                  {(!task.volunteerId || task.status === 'UNASSIGNED') && (
+                  {isDeliveryUnassigned(task) && (
                     <button
                       className="btn btn-primary hover-pop btn-shimmer"
                       onClick={() => handleAcceptTask(task._id)}
