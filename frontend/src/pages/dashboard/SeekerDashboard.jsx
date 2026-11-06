@@ -122,12 +122,38 @@ export const SeekerDashboard = () => {
     fetchBrowseData();
   }, [filters.category, filters.foodType, filters.priceType, filters.city, fetchBrowseData]);
 
-  // Real-time polling (every 5s) and window focus refetching for active claims & delivery tracking
+  // Initial fetch for claims
   useEffect(() => {
     fetchMyClaims();
-    const intervalId = setInterval(() => {
+  }, [fetchMyClaims]);
+
+  // Refetch whenever switching to claims or history tabs
+  useEffect(() => {
+    if (activeTab === 'claims' || activeTab === 'history') {
       fetchMyClaims();
-    }, 5000);
+    }
+  }, [activeTab, fetchMyClaims]);
+
+  // Real-time polling (every 5s) while an active claim/delivery is in flight
+  // Automatically stops polling when all claims are DELIVERED, COMPLETED, or CANCELLED
+  useEffect(() => {
+    const hasActiveInFlightClaims = myClaims.some(claim => {
+      if (claim.status === 'PENDING') return true;
+      if (claim.status === 'APPROVED') {
+        const del = deliveriesMap[claim._id];
+        // If delivery record is pending load or active en route
+        if (!del) return true;
+        return ['UNASSIGNED', 'ASSIGNED', 'PICKED_UP'].includes(del.status);
+      }
+      return false;
+    });
+
+    let intervalId = null;
+    if (hasActiveInFlightClaims) {
+      intervalId = setInterval(() => {
+        fetchMyClaims();
+      }, 5000);
+    }
 
     const handleFocus = () => {
       fetchMyClaims();
@@ -135,10 +161,10 @@ export const SeekerDashboard = () => {
     window.addEventListener('focus', handleFocus);
 
     return () => {
-      clearInterval(intervalId);
+      if (intervalId) clearInterval(intervalId);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [fetchMyClaims]);
+  }, [myClaims, deliveriesMap, fetchMyClaims]);
 
   // Listen for sidebar tab-change events
   useEffect(() => {
@@ -665,16 +691,34 @@ export const SeekerDashboard = () => {
 
                   {claim.status === 'APPROVED' && (
                     <div style={{ marginTop: '1rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
-                      <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: '#0f766e', marginBottom: '0.5rem' }}>
-                        Delivery & Pickup Tracking
-                      </h4>
-                      <StatusTimeline currentStatus={delivery?.status || 'ASSIGNED'} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: '#0f766e', margin: 0 }}>
+                          Delivery & Pickup Tracking
+                        </h4>
+                        {['UNASSIGNED', 'ASSIGNED', 'PICKED_UP'].includes(delivery?.status) && (
+                          <span style={{ fontSize: '0.72rem', color: '#0f766e', background: '#ccfbf1', padding: '0.2rem 0.55rem', borderRadius: '9999px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#0f766e', display: 'inline-block' }} /> Live Updates
+                          </span>
+                        )}
+                        {delivery?.status === 'DELIVERED' && (
+                          <span style={{ fontSize: '0.72rem', color: '#047857', background: '#ecfdf5', padding: '0.2rem 0.55rem', borderRadius: '9999px', fontWeight: 700 }}>
+                            Delivered
+                          </span>
+                        )}
+                      </div>
+
+                      <StatusTimeline currentStatus={delivery?.status || 'UNASSIGNED'} delivery={delivery} />
 
                       {delivery?.status === 'DELIVERED' && (
                         <div style={{ marginTop: '1rem', backgroundColor: '#f0fdfa', padding: '1rem', borderRadius: '10px', border: '1px solid #ccfbf1' }}>
-                          <p style={{ fontSize: '0.9rem', color: '#0f766e', fontWeight: 600, marginBottom: '0.5rem' }}>
+                          <p style={{ fontSize: '0.9rem', color: '#0f766e', fontWeight: 700, marginBottom: '0.25rem' }}>
                             Food has been delivered by the volunteer!
                           </p>
+                          {delivery.deliveredAt && (
+                            <p style={{ fontSize: '0.78rem', color: '#0d9488', marginBottom: '0.75rem' }}>
+                              Delivered at {new Date(delivery.deliveredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({new Date(delivery.deliveredAt).toLocaleDateString()})
+                            </p>
+                          )}
                           <button className="btn btn-primary btn-sm hover-pop" onClick={() => handleConfirmReceipt(delivery._id)}>
                             <Check size={16} /> Confirm Receipt (Complete Rescue)
                           </button>

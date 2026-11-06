@@ -360,6 +360,16 @@ export const markPickedUp = async (req, res) => {
       { path: 'volunteerId', select: 'name email phone' }
     ]);
 
+    // Send notification to seeker that food is picked up and en route
+    sendNotification({
+      recipientId: delivery.seekerId._id || delivery.seekerId,
+      type: 'DELIVERY_PICKED_UP',
+      title: 'Food Picked Up',
+      message: 'Your food has been picked up by the volunteer and is on its way.',
+      relatedEntityType: 'Delivery',
+      relatedEntityId: delivery._id
+    }).catch(err => console.error('Notification error on pickup:', err));
+
     res.status(200).json({
       status: 'success',
       message: 'Food marked as picked up successfully',
@@ -429,6 +439,16 @@ export const markDelivered = async (req, res) => {
       { path: 'seekerId', select: 'name email phone' },
       { path: 'volunteerId', select: 'name email phone' }
     ]);
+
+    // Send notification to seeker that food has been delivered
+    sendNotification({
+      recipientId: delivery.seekerId._id || delivery.seekerId,
+      type: 'DELIVERY_ARRIVED',
+      title: 'Food Delivered!',
+      message: 'Your food has been delivered by the volunteer. Please confirm receipt to complete the rescue.',
+      relatedEntityType: 'Delivery',
+      relatedEntityId: delivery._id
+    }).catch(err => console.error('Notification error on delivery:', err));
 
     res.status(200).json({
       status: 'success',
@@ -593,6 +613,140 @@ export const getMySeekerDeliveries = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'An error occurred while fetching your delivery tasks'
+    });
+  }
+};
+
+// ─────────────────────────────────────────────
+// PATCH /api/deliveries/:id/status — Update delivery status directly (e.g. Accepted, In Transit, Delivered)
+// ─────────────────────────────────────────────
+export const updateDeliveryStatus = async (req, res) => {
+  try {
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid delivery ID format'
+      });
+    }
+
+    const { status, notes, proofOfDelivery } = req.body;
+    if (!status) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Status is required'
+      });
+    }
+
+    const normalized = String(status).toUpperCase().trim().replace(/[\s-]/g, '_');
+    const statusMap = {
+      'ACCEPTED': 'ASSIGNED',
+      'ASSIGNED': 'ASSIGNED',
+      'IN_TRANSIT': 'PICKED_UP',
+      'INTRANSIT': 'PICKED_UP',
+      'PICKED_UP': 'PICKED_UP',
+      'PICKEDUP': 'PICKED_UP',
+      'DELIVERED': 'DELIVERED',
+      'RECEIVED': 'RECEIVED',
+      'COMPLETED': 'COMPLETED',
+      'CANCELLED': 'CANCELLED',
+      'CANCELED': 'CANCELLED'
+    };
+
+    const targetStatus = statusMap[normalized] || normalized;
+    const validStatuses = ['UNASSIGNED', 'ASSIGNED', 'PICKED_UP', 'DELIVERED', 'RECEIVED', 'COMPLETED', 'CANCELLED'];
+    if (!validStatuses.includes(targetStatus)) {
+      return res.status(400).json({
+        status: 'error',
+        message: `Invalid status: '${status}'. Allowed values: Accepted, In Transit, Delivered, Completed, Cancelled`
+      });
+    }
+
+    const delivery = await Delivery.findById(req.params.id);
+    if (!delivery) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Delivery task not found'
+      });
+    }
+
+    const isAssignedVolunteer = delivery.volunteerId?.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === 'ADMIN';
+
+    // If accepting an unassigned task, any volunteer can claim it
+    if (targetStatus === 'ASSIGNED' && (!delivery.volunteerId || delivery.status === 'UNASSIGNED')) {
+      delivery.volunteerId = req.user._id;
+    } else if (!isAssignedVolunteer && !isAdmin) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Only the assigned volunteer or admin can update this delivery status'
+      });
+    }
+
+    const now = new Date();
+    delivery.status = targetStatus;
+    if (notes) delivery.notes = notes;
+    if (proofOfDelivery) delivery.proofOfDelivery = proofOfDelivery;
+
+    if (targetStatus === 'ASSIGNED') {
+      delivery.acceptedAt = delivery.acceptedAt || now;
+      await FoodListing.findByIdAndUpdate(delivery.foodListingId, { status: 'PICKUP_ASSIGNED' });
+      await sendNotification({
+        recipientId: delivery.seekerId,
+        type: 'DELIVERY_ASSIGNED',
+        title: 'Volunteer Assigned',
+        message: `Volunteer ${req.user.name || ''} has accepted the pickup task for your claimed food.`,
+        relatedEntityType: 'Delivery',
+        relatedEntityId: delivery._id
+      }).catch(() => {});
+    } else if (targetStatus === 'PICKED_UP') {
+      delivery.pickedUpAt = delivery.pickedUpAt || now;
+      await FoodListing.findByIdAndUpdate(delivery.foodListingId, { status: 'PICKED_UP' });
+      await sendNotification({
+        recipientId: delivery.seekerId,
+        type: 'DELIVERY_PICKED_UP',
+        title: 'Food Picked Up',
+        message: 'Your food has been picked up by the volunteer and is on its way.',
+        relatedEntityType: 'Delivery',
+        relatedEntityId: delivery._id
+      }).catch(() => {});
+    } else if (targetStatus === 'DELIVERED') {
+      delivery.deliveredAt = delivery.deliveredAt || now;
+      await FoodListing.findByIdAndUpdate(delivery.foodListingId, { status: 'DELIVERED' });
+      await sendNotification({
+        recipientId: delivery.seekerId,
+        type: 'DELIVERY_ARRIVED',
+        title: 'Food Delivered!',
+        message: 'Your food has been delivered by the volunteer. Please confirm receipt to complete the rescue.',
+        relatedEntityType: 'Delivery',
+        relatedEntityId: delivery._id
+      }).catch(() => {});
+    } else if (targetStatus === 'COMPLETED') {
+      delivery.completedAt = delivery.completedAt || now;
+      delivery.receivedAt = delivery.receivedAt || now;
+      await FoodClaim.findByIdAndUpdate(delivery.foodClaimId, { status: 'COMPLETED' });
+      await FoodListing.findByIdAndUpdate(delivery.foodListingId, { status: 'COMPLETED' });
+    }
+
+    await delivery.save();
+
+    await delivery.populate([
+      { path: 'foodListingId' },
+      { path: 'foodClaimId' },
+      { path: 'providerId', select: 'name email phone' },
+      { path: 'seekerId', select: 'name email phone' },
+      { path: 'volunteerId', select: 'name email phone' }
+    ]);
+
+    res.status(200).json({
+      status: 'success',
+      message: `Delivery status updated to ${targetStatus} successfully`,
+      data: { delivery }
+    });
+  } catch (error) {
+    console.error('Update delivery status error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'An error occurred while updating delivery status'
     });
   }
 };

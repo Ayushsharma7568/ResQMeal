@@ -6,6 +6,7 @@ export const deliveryApi = {
   getMyAssignedTasks: (params) => axiosInstance.get('/deliveries/my', { params }),
   getSeekerDeliveries: (params) => axiosInstance.get('/deliveries/seeker', { params }),
   acceptTask: (id) => axiosInstance.patch(`/deliveries/${id}/accept`),
+  updateStatus: (id, data) => axiosInstance.patch(`/deliveries/${id}/status`, data),
   markPickedUp: (id) => axiosInstance.patch(`/deliveries/${id}/picked-up`),
   markDelivered: (id, data) => axiosInstance.patch(`/deliveries/${id}/delivered`, data),
   confirmReceipt: (id) => axiosInstance.patch(`/deliveries/${id}/confirm-receipt`),

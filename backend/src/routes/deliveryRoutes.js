@@ -9,6 +9,7 @@ import {
   markPickedUp,
   markDelivered,
   confirmReceipt,
+  updateDeliveryStatus,
   getDelivery
 } from '../controllers/deliveryController.js';
 
@@ -57,6 +58,7 @@ router.get('/seeker', protect, authorize('FOOD_SEEKER', 'ADMIN'), getMySeekerDel
 router.patch('/:id/confirm-receipt', protect, authorize('FOOD_SEEKER', 'ADMIN'), confirmReceipt);
 
 // Status transition routes
+router.patch('/:id/status', protect, authorize('VOLUNTEER', 'ADMIN'), updateDeliveryStatus);
 router.patch('/:id/accept', protect, authorize('VOLUNTEER', 'ADMIN'), acceptTask);
 router.patch('/:id/picked-up', protect, authorize('VOLUNTEER', 'ADMIN'), markPickedUp);
 router.patch('/:id/delivered', protect, authorize('VOLUNTEER', 'ADMIN'), deliveredValidation, markDelivered);
