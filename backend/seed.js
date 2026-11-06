@@ -4,6 +4,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import User from './src/models/User.js';
 import FoodListing from './src/models/FoodListing.js';
+import FoodClaim from './src/models/FoodClaim.js';
+import Delivery from './src/models/Delivery.js';
 
 // Resolve environment file
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -177,6 +179,97 @@ export const seedFoodListings = async () => {
   return seededCount;
 };
 
+export const seedDeliveries = async () => {
+  // Check if at least one unassigned pickup task already exists
+  const existingUnassigned = await Delivery.findOne({
+    $or: [
+      { status: 'UNASSIGNED' },
+      { volunteerId: null }
+    ]
+  });
+
+  if (existingUnassigned) {
+    const count = await Delivery.countDocuments({
+      $or: [
+        { status: 'UNASSIGNED' },
+        { volunteerId: null }
+      ]
+    });
+    console.log(`📦 Deliveries check: ${count} unassigned pickup task(s) already available.`);
+    return 0;
+  }
+
+  console.log('⚠️ No unassigned deliveries found. Seeding default unassigned pickup task for demo volunteer...');
+
+  const provider = await User.findOne({ email: 'provider@dontwasteit.demo' });
+  const seeker = await User.findOne({ email: 'seeker@dontwasteit.demo' });
+
+  if (!provider || !seeker) {
+    console.warn('⚠️ Demo provider or seeker not found. Ensuring demo users are seeded...');
+    await seedUsers();
+  }
+
+  const verifiedProvider = await User.findOne({ email: 'provider@dontwasteit.demo' });
+  const verifiedSeeker = await User.findOne({ email: 'seeker@dontwasteit.demo' });
+
+  if (!verifiedProvider || !verifiedSeeker) {
+    console.error('❌ Could not find verified demo provider or seeker for delivery seeding.');
+    return 0;
+  }
+
+  // Find a sample listing
+  let listing = await FoodListing.findOne({ providerId: verifiedProvider._id, status: 'AVAILABLE' });
+  if (!listing) {
+    listing = await FoodListing.findOne({ providerId: verifiedProvider._id });
+  }
+
+  if (!listing) {
+    await seedFoodListings();
+    listing = await FoodListing.findOne({ providerId: verifiedProvider._id });
+  }
+
+  if (!listing) {
+    console.error('❌ Could not find or create a listing for delivery seeding.');
+    return 0;
+  }
+
+  // Find or create an approved claim not already tied to any delivery
+  const existingDeliveries = await Delivery.find({}, 'foodClaimId');
+  const usedClaimIds = existingDeliveries.map(d => d.foodClaimId ? d.foodClaimId.toString() : '');
+
+  let availableClaim = await FoodClaim.findOne({
+    _id: { $nin: usedClaimIds },
+    status: 'APPROVED'
+  });
+
+  if (!availableClaim) {
+    availableClaim = await FoodClaim.create({
+      foodListingId: listing._id,
+      seekerId: verifiedSeeker._id,
+      providerId: verifiedProvider._id,
+      status: 'APPROVED',
+      requestedPickupTime: new Date(Date.now() + 3 * 3600 * 1000),
+      notes: 'Demo approved claim for volunteer pickup fulfillment'
+    });
+    console.log(`  + Seeded approved claim: "${availableClaim._id}"`);
+  }
+
+  const seededDelivery = await Delivery.create({
+    foodClaimId: availableClaim._id,
+    foodListingId: availableClaim.foodListingId || listing._id,
+    providerId: verifiedProvider._id,
+    seekerId: verifiedSeeker._id,
+    volunteerId: null,
+    status: 'UNASSIGNED',
+    pickupAddress: listing.pickupAddress || '80 Feet Road, 4th Block, Koramangala',
+    deliveryAddress: '12th Main Road, HAL 2nd Stage, Indiranagar, Bangalore',
+    notes: 'Surplus meal packets ready for community distribution. Handle with care.'
+  });
+
+  console.log(`🌱 Unassigned delivery task seeded: ${seededDelivery._id} (${listing.title})`);
+  return 1;
+};
+
 const run = async () => {
   try {
     console.log(`Connecting to MongoDB at: ${MONGODB_URI}...`);
@@ -192,6 +285,9 @@ const run = async () => {
     const listingCount = await seedFoodListings();
     console.log(`🌱 Food listing seeding complete: ${listingCount} new Bangalore listing(s) created.`);
 
+    const deliveryCount = await seedDeliveries();
+    console.log(`🌱 Delivery task seeding complete: ${deliveryCount} unassigned delivery task(s) seeded.`);
+
     // Verify
     const allUsers = await User.find({ email: { $in: demoUsers.map(d => d.email) } });
     console.log(`Verified ${allUsers.length}/${demoUsers.length} demo accounts in database.`);
@@ -200,6 +296,14 @@ const run = async () => {
       title: { $in: ['Fresh Veggie Meals (Surplus)', 'Bakery Bread and Pastries', 'Packed Rice and Dal Combo'] }
     });
     console.log(`Verified ${sampleListings.length}/3 Bangalore sample listings in database.`);
+
+    const unassignedTasks = await Delivery.find({
+      $or: [
+        { status: 'UNASSIGNED' },
+        { volunteerId: null }
+      ]
+    });
+    console.log(`Verified ${unassignedTasks.length} unassigned delivery task(s) available for volunteers.`);
 
     await mongoose.connection.close();
     process.exit(0);

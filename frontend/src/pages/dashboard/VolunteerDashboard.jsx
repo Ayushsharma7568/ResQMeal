@@ -10,26 +10,35 @@ import { AnimatedCounter } from '../../components/common/AnimatedCounter';
 import { motion } from 'framer-motion';
 import {
   Truck, MapPin, Clock, CheckCircle2, User, Building,
-  ArrowRight, PackageCheck, AlertCircle, Phone, Navigation, Filter, Map as MapIcon, List
+  ArrowRight, PackageCheck, AlertCircle, Phone, Navigation, Filter, Map as MapIcon, List, Package
 } from 'lucide-react';
 
 // Helper to reliably check if a delivery has no volunteer assigned
 const isDeliveryUnassigned = (d) => {
   if (!d) return false;
+  const status = String(d.status || '').toUpperCase();
+  // Any delivery already assigned or progressed down the workflow is NOT unassigned
+  if (['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED', 'RECEIVED', 'CANCELLED'].includes(status)) {
+    return false;
+  }
   const vol = d.volunteer || d.volunteerId;
   if (vol) {
     if (typeof vol === 'string' && vol.trim().length > 0) return false;
-    if (typeof vol === 'object' && vol._id) return false;
-  }
-  const status = String(d.status || '').toUpperCase();
-  if (['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED', 'RECEIVED'].includes(status)) {
-    if (d.volunteer || d.volunteerId) return false;
+    if (typeof vol === 'object' && (vol._id || Object.keys(vol).length > 0)) return false;
   }
   return true;
 };
 
 export const VolunteerDashboard = () => {
-  const [activeTab, setActiveTab] = useState('available'); // 'available' | 'my_tasks'
+  // Initialize tab from URL hash if provided (#available or #my_tasks), defaulting to 'available'
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hash = window.location.hash.replace('#', '');
+      if (['available', 'my_tasks'].includes(hash)) return hash;
+    }
+    return 'available';
+  });
+
   const [availableTasks, setAvailableTasks] = useState([]);
   const [myTasks, setMyTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -82,26 +91,20 @@ export const VolunteerDashboard = () => {
         deliveryApi.getMyAssignedTasks()
       ]);
 
-      const rawAvailable = availRes.data?.deliveries || [];
-      const rawMy = myRes.data?.deliveries || [];
+      const rawAvailable = availRes?.data?.deliveries || availRes?.deliveries || (Array.isArray(availRes?.data) ? availRes.data : []);
+      const rawMy = myRes?.data?.deliveries || myRes?.deliveries || (Array.isArray(myRes?.data) ? myRes.data : []);
 
-      // Combine and deduplicate all deliveries returned
-      const deliveryMap = new Map();
-      [...rawAvailable, ...rawMy].forEach(item => {
-        if (item && item._id) {
-          deliveryMap.set(item._id.toString(), item);
+      // Filter available unassigned tasks
+      const unassignedTasks = rawAvailable.filter(d => isDeliveryUnassigned(d));
+      // Ensure any unassigned items that appeared in myRes are also grouped properly
+      rawMy.forEach(d => {
+        if (isDeliveryUnassigned(d) && !unassignedTasks.some(t => t._id?.toString() === d._id?.toString())) {
+          unassignedTasks.push(d);
         }
       });
-      const allUnique = Array.from(deliveryMap.values());
 
-      // Group into Unassigned Pickups:
-      // Any delivery without an assigned volunteer (!d.volunteer && !d.volunteerId)
-      // or with unassigned/pending status is reliably placed into availableTasks
-      const unassignedTasks = allUnique.filter(d => isDeliveryUnassigned(d));
-
-      // Group into Assigned Tasks:
-      // Deliveries with an assigned volunteer that are currently active
-      const assignedTasks = allUnique.filter(d => !isDeliveryUnassigned(d));
+      // Filter assigned tasks (tasks assigned to this volunteer)
+      const assignedTasks = rawMy.filter(d => !isDeliveryUnassigned(d));
 
       setAvailableTasks(unassignedTasks);
       setMyTasks(assignedTasks);
@@ -135,7 +138,7 @@ export const VolunteerDashboard = () => {
     };
   }, [fetchData]);
 
-  // Listen for sidebar tab-change events
+  // Listen for sidebar tab-change events & URL hash navigation
   useEffect(() => {
     const handleTabChange = (e) => {
       const tab = e.detail?.tab;
@@ -145,8 +148,19 @@ export const VolunteerDashboard = () => {
         setActiveTab(tab);
       }
     };
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (['available', 'my_tasks'].includes(hash)) {
+        setActiveTab(hash);
+      }
+    };
+
     window.addEventListener('dashboard-tab-change', handleTabChange);
-    return () => window.removeEventListener('dashboard-tab-change', handleTabChange);
+    window.addEventListener('hashchange', handleHashChange);
+    return () => {
+      window.removeEventListener('dashboard-tab-change', handleTabChange);
+      window.removeEventListener('hashchange', handleHashChange);
+    };
   }, []);
 
   // Accept Pickup Task — Immediately updates state and refreshes without manual reload
@@ -283,7 +297,10 @@ export const VolunteerDashboard = () => {
           <motion.div
             key={kpi.label}
             variants={itemVariants}
-            className={`dash-kpi-card dash-kpi-card--${kpi.variant}`}
+            className={`dash-kpi-card dash-kpi-card--${kpi.variant} hover-lift`}
+            onClick={() => kpi.label.includes('Available') ? setActiveTab('available') : setActiveTab('my_tasks')}
+            style={{ cursor: 'pointer' }}
+            title={`View ${kpi.label}`}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.85rem' }}>
               <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -303,20 +320,66 @@ export const VolunteerDashboard = () => {
 
       {/* ── CONTROLS BAR ─────────────────────────────────────────────── */}
       <div className="dash-controls-bar">
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <button
             onClick={() => setActiveTab('available')}
             className={`dash-tab-btn ${activeTab === 'available' ? 'active' : ''}`}
+            data-testid="tab-available-pickups"
+            style={{
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.55rem',
+              fontWeight: 700,
+              fontSize: '0.9rem',
+              padding: '0.55rem 1rem'
+            }}
           >
-            <List size={15} />
-            Available ({availableTasks.length})
+            <List size={16} />
+            <span>Available Pickups</span>
+            <span
+              style={{
+                background: activeTab === 'available' ? '#0f766e' : '#e2e8f0',
+                color: activeTab === 'available' ? '#ffffff' : '#334155',
+                padding: '0.15rem 0.6rem',
+                borderRadius: '9999px',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                lineHeight: 1.2
+              }}
+            >
+              {availableTasks.length}
+            </span>
           </button>
           <button
             onClick={() => setActiveTab('my_tasks')}
             className={`dash-tab-btn ${activeTab === 'my_tasks' ? 'active' : ''}`}
+            data-testid="tab-my-deliveries"
+            style={{
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.55rem',
+              fontWeight: 700,
+              fontSize: '0.9rem',
+              padding: '0.55rem 1rem'
+            }}
           >
-            <Truck size={15} />
-            My Deliveries ({activeDeliveries.length})
+            <Truck size={16} />
+            <span>My Deliveries</span>
+            <span
+              style={{
+                background: activeTab === 'my_tasks' ? '#0f766e' : '#e2e8f0',
+                color: activeTab === 'my_tasks' ? '#ffffff' : '#334155',
+                padding: '0.15rem 0.6rem',
+                borderRadius: '9999px',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                lineHeight: 1.2
+              }}
+            >
+              {activeDeliveries.length}
+            </span>
           </button>
         </div>
 
@@ -360,9 +423,28 @@ export const VolunteerDashboard = () => {
         <div className="dash-split-55-45">
           {/* LEFT: Task Cards */}
           <div>
-            <div className="dash-section-header">
-              <span className="dash-section-title">Available Pickup Tasks</span>
-              <span className="dash-section-count">{availableTasks.length} tasks</span>
+            <div className="dash-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div>
+                <h2 className="dash-section-title" style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Package size={20} color="#0f766e" />
+                  Available Pickups
+                </h2>
+                <span style={{ fontSize: '0.82rem', color: '#64748b' }}>
+                  Food surplus rescue tasks waiting for volunteer pickup
+                </span>
+              </div>
+              <span
+                style={{
+                  background: '#ccfbf1',
+                  color: '#0f766e',
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: '9999px',
+                  fontWeight: 700,
+                  fontSize: '0.82rem'
+                }}
+              >
+                {availableTasks.length} {availableTasks.length === 1 ? 'task' : 'tasks'}
+              </span>
             </div>
 
             {loading ? (
@@ -375,12 +457,19 @@ export const VolunteerDashboard = () => {
                 initial="hidden"
                 animate="visible"
                 className="dash-scrollable-panel"
-                style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem', maxHeight: '580px' }}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1.25rem',
+                  maxHeight: 'calc(100vh - 260px)',
+                  minHeight: '400px',
+                  overflowY: 'auto'
+                }}
               >
                 {availableTasks.map((task, idx) => (
-                  <motion.div key={task._id} variants={itemVariants} className="dash-food-card">
+                  <motion.div key={task._id} variants={itemVariants} className="dash-food-card hover-lift" style={{ border: '1px solid #e2e8f0', borderRadius: '14px', overflow: 'hidden' }}>
                     {/* Food Image */}
-                    <div className="dash-food-card-img-wrap" style={{ height: '120px' }}>
+                    <div className="dash-food-card-img-wrap" style={{ height: '130px', position: 'relative' }}>
                       <img
                         src={getFoodImage(idx, task.foodListingId?.photoUrl)}
                         alt={task.foodListingId?.title || 'Pickup'}
@@ -402,64 +491,80 @@ export const VolunteerDashboard = () => {
                     </div>
 
                     {/* Card Body */}
-                    <div className="dash-food-card-body">
-                      <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.65rem', lineHeight: 1.3 }}>
+                    <div className="dash-food-card-body" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0, lineHeight: 1.3 }}>
                         {task.foodListingId?.title || 'Food Surplus Pickup'}
                       </h3>
 
-                      <div style={{ backgroundColor: '#f8fafc', padding: '0.75rem', borderRadius: '9px', marginBottom: '0.85rem', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
-                          <Building size={14} color="#0f766e" style={{ marginTop: '2px', flexShrink: 0 }} />
+                      <div style={{ backgroundColor: '#f8fafc', padding: '0.85rem', borderRadius: '10px', fontSize: '0.82rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', border: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                          <Building size={15} color="#0f766e" style={{ marginTop: '2px', flexShrink: 0 }} />
                           <div>
-                            <strong style={{ color: '#0f172a' }}>{task.providerId?.name}</strong>
-                            <div style={{ color: '#64748b' }}>
+                            <strong style={{ color: '#0f172a' }}>{task.providerId?.name || 'Demo Provider'}</strong>
+                            <div style={{ color: '#64748b', fontSize: '0.8rem' }}>
                               {task.foodListingId?.pickupCity
                                 ? `${task.foodListingId.pickupCity}${task.foodListingId.pickupState ? `, ${task.foodListingId.pickupState}` : ''}`
                                 : task.pickupAddress}
                             </div>
                           </div>
                         </div>
-                        <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.4rem', display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
-                          <User size={14} color="#059669" style={{ marginTop: '2px', flexShrink: 0 }} />
+                        <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                          <User size={15} color="#059669" style={{ marginTop: '2px', flexShrink: 0 }} />
                           <div>
-                            <strong style={{ color: '#0f172a' }}>{task.seekerId?.name}</strong>
-                            <div style={{ color: '#64748b' }}>{task.deliveryAddress || 'Address by seeker'}</div>
+                            <strong style={{ color: '#0f172a' }}>{task.seekerId?.name || 'Food Seeker'}</strong>
+                            <div style={{ color: '#64748b', fontSize: '0.8rem' }}>{task.deliveryAddress || 'Address specified by seeker'}</div>
                           </div>
                         </div>
                       </div>
 
-                      <div style={{ fontSize: '0.76rem', color: '#64748b', marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <Clock size={13} color="#d97706" />
-                        Deadline: {task.foodListingId?.pickupDeadline
+                      <div style={{ fontSize: '0.78rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <Clock size={14} color="#d97706" />
+                        <span>Deadline: {task.foodListingId?.pickupDeadline
                           ? new Date(task.foodListingId.pickupDeadline).toLocaleString()
-                          : 'N/A'}
+                          : 'Within 24 Hours'}</span>
                       </div>
 
-                      <button
-                        className="btn btn-primary btn-sm hover-pop btn-shimmer"
-                        style={{
-                          width: '100%',
-                          background: acceptingTaskId === task._id
-                            ? '#94a3b8'
-                            : 'linear-gradient(135deg, #0f766e 0%, #059669 100%)',
-                          padding: '0.7rem 1rem',
-                          fontSize: '0.88rem',
-                          fontWeight: 800,
-                          letterSpacing: '0.01em',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '0.5rem'
-                        }}
-                        onClick={() => handleAcceptTask(task._id)}
-                        disabled={actionLoading}
-                      >
-                        {acceptingTaskId === task._id ? (
-                          <><Clock size={15} className="spin-animation" /> Assigning...</>
-                        ) : (
-                          <><Truck size={16} /> ✋ Accept Pickup — Assign to Me</>
-                        )}
-                      </button>
+                      {/* Unconditional Accept Pickup — Assign to Me Button */}
+                      <div style={{ marginTop: '0.25rem', position: 'relative', zIndex: 10 }}>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm hover-pop btn-shimmer"
+                          style={{
+                            width: '100%',
+                            background: acceptingTaskId === task._id
+                              ? '#94a3b8'
+                              : 'linear-gradient(135deg, #0f766e 0%, #059669 100%)',
+                            color: '#ffffff',
+                            padding: '0.75rem 1rem',
+                            fontSize: '0.9rem',
+                            fontWeight: 800,
+                            letterSpacing: '0.01em',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.5rem',
+                            borderRadius: '10px',
+                            border: 'none',
+                            cursor: actionLoading ? 'not-allowed' : 'pointer',
+                            boxShadow: '0 4px 12px rgba(15, 118, 110, 0.25)',
+                            position: 'relative',
+                            zIndex: 10
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAcceptTask(task._id);
+                          }}
+                          disabled={actionLoading}
+                          data-testid={`accept-pickup-btn-${task._id}`}
+                          aria-label="Accept Pickup — Assign to Me"
+                        >
+                          {acceptingTaskId === task._id ? (
+                            <><Clock size={16} className="spin-animation" /> Assigning to You...</>
+                          ) : (
+                            <><Truck size={17} /> ✋ Accept Pickup — Assign to Me</>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 ))}
