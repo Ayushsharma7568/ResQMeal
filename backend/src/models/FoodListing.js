@@ -131,6 +131,15 @@ const foodListingSchema = new mongoose.Schema({
   pickupLng: {
     type: Number
   },
+  location: {
+    type: {
+      type: String,
+      enum: ['Point']
+    },
+    coordinates: {
+      type: [Number] // [longitude, latitude]
+    }
+  },
   pickupInstructions: {
     type: String,
     trim: true,
@@ -166,6 +175,26 @@ const foodListingSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// ─── GeoJSON Sync Hook ──────────────────────
+foodListingSchema.pre('save', function syncGeoLocation(next) {
+  const lat = Number(this.pickupLat);
+  const lng = Number(this.pickupLng);
+  if (
+    this.pickupLat !== undefined && this.pickupLat !== null &&
+    this.pickupLng !== undefined && this.pickupLng !== null &&
+    Number.isFinite(lat) && Number.isFinite(lng) &&
+    (lat !== 0 || lng !== 0)
+  ) {
+    this.location = {
+      type: 'Point',
+      coordinates: [lng, lat]
+    };
+  } else if (!this.location || !Array.isArray(this.location.coordinates) || this.location.coordinates.length < 2) {
+    this.location = undefined;
+  }
+  next();
+});
+
 // ─── Indexes ────────────────────────────────
 foodListingSchema.index({ providerId: 1 });
 foodListingSchema.index({ status: 1 });
@@ -174,6 +203,7 @@ foodListingSchema.index({ pickupDeadline: 1 });
 foodListingSchema.index({ priceType: 1 });
 foodListingSchema.index({ 'foodItems.category': 1 });
 foodListingSchema.index({ 'foodItems.foodType': 1 });
+foodListingSchema.index({ location: '2dsphere' });
 
 const FoodListing = mongoose.model('FoodListing', foodListingSchema);
 

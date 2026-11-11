@@ -9,6 +9,7 @@ import { Modal } from '../../components/common/Modal';
 import { Toast } from '../../components/common/Toast';
 import { Skeleton } from '../../components/common/Skeleton';
 import { AnimatedCounter } from '../../components/common/AnimatedCounter';
+import { ImpactAnalyticsSection } from '../../components/dashboard/ImpactAnalyticsSection';
 import { motion } from 'framer-motion';
 import {
   PlusCircle, Package, CheckCircle2, Clock, MapPin,
@@ -365,6 +366,9 @@ export const ProviderDashboard = () => {
           + List Surplus Food
         </button>
       </motion.div>
+
+      {/* ── ROLE-BASED IMPACT & SUSTAINABILITY ANALYTICS ─────────────── */}
+      <ImpactAnalyticsSection refreshTrigger={completedListingsCount} />
 
       {/* ── MAIN CONTENT: 60/40 SPLIT ────────────────────────────────── */}
       <motion.div

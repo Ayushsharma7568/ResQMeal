@@ -3,6 +3,7 @@ import FoodClaim from '../models/FoodClaim.js';
 import FoodListing from '../models/FoodListing.js';
 import Delivery from '../models/Delivery.js';
 import { sendNotification } from '../services/notificationService.js';
+import { emitEvent } from '../config/socket.js';
 
 // ─────────────────────────────────────────────
 // POST /api/claims — Create a food claim (Seeker)
@@ -310,13 +311,20 @@ export const approveClaim = async (req, res) => {
     await listing.save();
 
     // Automatically create Delivery task for volunteer pickup & delivery
-    await Delivery.create({
+    const createdDelivery = await Delivery.create({
       foodClaimId: claim._id,
       foodListingId: listing._id,
       providerId: listing.providerId,
       seekerId: claim.seekerId,
       status: 'UNASSIGNED',
       pickupAddress: listing.pickupAddress
+    });
+
+    emitEvent('delivery:updated', {
+      deliveryId: createdDelivery._id.toString(),
+      foodClaimId: claim._id.toString(),
+      status: createdDelivery.status,
+      delivery: createdDelivery.toObject ? createdDelivery.toObject() : createdDelivery
     });
 
     // Auto-reject any other pending claims for this listing
@@ -483,6 +491,13 @@ export const cancelClaim = async (req, res) => {
       linkedDelivery.status = 'CANCELLED';
       linkedDelivery.volunteerId = null;
       await linkedDelivery.save();
+
+      emitEvent('delivery:updated', {
+        deliveryId: linkedDelivery._id.toString(),
+        foodClaimId: claim._id.toString(),
+        status: 'CANCELLED',
+        delivery: linkedDelivery.toObject ? linkedDelivery.toObject() : linkedDelivery
+      });
 
       // Notify assigned volunteer if task was already claimed
       if (prevVolunteerId) {

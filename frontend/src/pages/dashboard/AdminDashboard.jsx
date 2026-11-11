@@ -8,6 +8,7 @@ import { Badge } from '../../components/common/Badge';
 import { Skeleton } from '../../components/common/Skeleton';
 import { Toast } from '../../components/common/Toast';
 import { AnimatedCounter } from '../../components/common/AnimatedCounter';
+import { ImpactAnalyticsSection } from '../../components/dashboard/ImpactAnalyticsSection';
 import { motion } from 'framer-motion';
 import {
   Shield, Users, Package, Heart, Truck, Search,
@@ -167,6 +168,9 @@ export const AdminDashboard = () => {
           </motion.div>
         ))}
       </motion.div>
+
+      {/* ── PLATFORM-WIDE IMPACT & SUSTAINABILITY ANALYTICS ─────────── */}
+      <ImpactAnalyticsSection refreshTrigger={successfulRescues} />
 
       {/* ── TABS ─────────────────────────────────────────────────────── */}
       <div className="dash-tabs-bar">

@@ -304,7 +304,9 @@ export const backfillListingCoordinates = async () => {
       { pickupLat: 0 },
       { pickupLng: { $exists: false } },
       { pickupLng: null },
-      { pickupLng: 0 }
+      { pickupLng: 0 },
+      { 'location.coordinates': { $exists: false } },
+      { 'location.coordinates': { $size: 0 } }
     ]
   });
 
@@ -313,6 +315,8 @@ export const backfillListingCoordinates = async () => {
   let updatedCount = 0;
   for (const listing of missingCoordListings) {
     const resolved = await resolveListingCoordinates({
+      pickupLat: listing.pickupLat,
+      pickupLng: listing.pickupLng,
       pickupAddress: listing.pickupAddress,
       pickupCity: listing.pickupCity,
       pickupState: listing.pickupState,
@@ -320,12 +324,16 @@ export const backfillListingCoordinates = async () => {
     });
     listing.pickupLat = resolved.pickupLat;
     listing.pickupLng = resolved.pickupLng;
+    listing.location = {
+      type: 'Point',
+      coordinates: [resolved.pickupLng, resolved.pickupLat]
+    };
     await listing.save();
     updatedCount++;
   }
 
   if (updatedCount > 0) {
-    console.log(`📍 Geocoded and backfilled coordinates for ${updatedCount} existing food listing(s).`);
+    console.log(`📍 Geocoded and synced GeoJSON coordinates for ${updatedCount} existing food listing(s).`);
   }
   return updatedCount;
 };

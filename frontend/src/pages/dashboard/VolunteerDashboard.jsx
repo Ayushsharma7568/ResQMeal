@@ -6,6 +6,7 @@ import { Toast } from '../../components/common/Toast';
 import { Skeleton } from '../../components/common/Skeleton';
 import { StatusTimeline } from '../../components/common/StatusTimeline';
 import { MapView, extractCoordinates } from '../../components/common/MapView';
+import { getSocket } from '../../utils/socket';
 import { AnimatedCounter } from '../../components/common/AnimatedCounter';
 import { motion } from 'framer-motion';
 import {
@@ -41,6 +42,7 @@ export const VolunteerDashboard = () => {
 
   const [availableTasks, setAvailableTasks] = useState([]);
   const [myTasks, setMyTasks] = useState([]);
+  const [recentBroadcastListings, setRecentBroadcastListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ message: '', type: 'success' });
   const [actionLoading, setActionLoading] = useState(false);
@@ -52,25 +54,38 @@ export const VolunteerDashboard = () => {
   const [sortByNearest, setSortByNearest] = useState(true);
   const [locating, setLocating] = useState(false);
 
-  // Auto-detect browser location
+  // Auto-detect browser location (falls back to Bangalore central if unavailable)
   const handleDetectLocation = () => {
     if (!navigator.geolocation) {
-      setToast({ message: 'Geolocation is not supported by your browser', type: 'error' });
+      setVolunteerLocation({ lat: 12.9716, lng: 77.5946 });
+      setSortByNearest(true);
+      setToast({ message: 'Using Bangalore central coordinates for distance sorting.', type: 'info' });
       return;
     }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setVolunteerLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setSortByNearest(true);
         setLocating(false);
-        setToast({ message: 'Location updated! Showing distance to pickups.', type: 'success' });
+        setToast({ message: 'Location updated! Showing nearest pickups first.', type: 'success' });
       },
       () => {
+        setVolunteerLocation({ lat: 12.9716, lng: 77.5946 });
+        setSortByNearest(true);
         setLocating(false);
-        setToast({ message: 'Could not fetch your position. Showing standard list.', type: 'warning' });
+        setToast({ message: 'GPS unavailable — using Bangalore center for proximity sorting.', type: 'info' });
       },
-      { timeout: 8000 }
+      { timeout: 6000 }
     );
+  };
+
+  const handleToggleSortByNearest = () => {
+    const next = !sortByNearest;
+    setSortByNearest(next);
+    if (next && !volunteerLocation) {
+      handleDetectLocation();
+    }
   };
 
   const fetchData = useCallback(async (isInitial = false) => {
@@ -135,6 +150,33 @@ export const VolunteerDashboard = () => {
     return () => {
       clearInterval(timer);
       window.removeEventListener('focus', handleFocus);
+    };
+  }, [fetchData]);
+
+  // Real-time Socket.io integration for live pickups & new food listings
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleListingCreated = (newListing) => {
+      if (!newListing || !newListing._id) return;
+      setRecentBroadcastListings(prev => {
+        if (prev.some(l => l._id === newListing._id)) return prev;
+        return [newListing, ...prev].slice(0, 5);
+      });
+      setToast({ message: `New food surplus posted nearby: ${newListing.title}`, type: 'info' });
+      fetchData(false);
+    };
+
+    const handleDeliveryUpdated = () => {
+      fetchData(false);
+    };
+
+    socket.on('listing:created', handleListingCreated);
+    socket.on('delivery:updated', handleDeliveryUpdated);
+
+    return () => {
+      socket.off('listing:created', handleListingCreated);
+      socket.off('delivery:updated', handleDeliveryUpdated);
     };
   }, [fetchData]);
 
@@ -408,6 +450,22 @@ export const VolunteerDashboard = () => {
             {locating ? 'Locating...' : volunteerLocation ? 'Location Active ✓' : 'Detect My Location'}
           </button>
 
+          <button
+            type="button"
+            onClick={handleToggleSortByNearest}
+            className="hover-pop"
+            data-testid="volunteer-sort-nearest-btn"
+            style={{
+              padding: '0.45rem 0.85rem', borderRadius: '8px',
+              background: sortByNearest && volunteerLocation ? '#0f766e' : '#f1f5f9',
+              border: sortByNearest && volunteerLocation ? '1px solid #0f766e' : '1px solid #cbd5e1',
+              color: sortByNearest && volunteerLocation ? '#ffffff' : '#475569',
+              fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer'
+            }}
+          >
+            {sortByNearest && volunteerLocation ? '✓ Nearest First' : 'Sort by Nearest'}
+          </button>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <Filter size={14} color="#64748b" />
             <select
@@ -424,6 +482,38 @@ export const VolunteerDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* ── LIVE SOCKET BROADCAST BANNER ─────────────────────────────── */}
+      {recentBroadcastListings.length > 0 && (
+        <div
+          style={{
+            background: '#ecfdf5',
+            border: '1px solid #a7f3d0',
+            borderRadius: '10px',
+            padding: '0.65rem 1rem',
+            marginBottom: '1.25rem',
+            fontSize: '0.82rem',
+            color: '#047857',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.5rem'
+          }}
+        >
+          <span>
+            ⚡ Live Update: &ldquo;{recentBroadcastListings[0].title}&rdquo; was just posted
+            {recentBroadcastListings[0].pickupCity ? ` in ${recentBroadcastListings[0].pickupCity}` : ''}.
+          </span>
+          <button
+            type="button"
+            onClick={() => setRecentBroadcastListings([])}
+            style={{ background: 'none', border: 'none', color: '#047857', cursor: 'pointer', fontWeight: 800 }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* ── AVAILABLE TASKS: Tasks LEFT + Map RIGHT ───────────────────── */}
       {activeTab === 'available' && (
@@ -486,9 +576,9 @@ export const VolunteerDashboard = () => {
                       {task.pickupDistance !== undefined && task.pickupDistance !== null && (
                         <div
                           className="dash-food-card-img-price"
-                          style={{ background: 'rgba(124, 58, 237, 0.85)', color: '#fff' }}
+                          style={{ background: 'rgba(124, 58, 237, 0.9)', color: '#fff' }}
                         >
-                          📍 {task.pickupDistance} km
+                          📍 {task.pickupDistance} km away
                         </div>
                       )}
                     </div>

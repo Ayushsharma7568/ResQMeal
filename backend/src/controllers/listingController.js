@@ -2,6 +2,7 @@ import { validationResult } from 'express-validator';
 import FoodListing from '../models/FoodListing.js';
 import { calculateHaversineDistance } from '../utils/distance.js';
 import { resolveListingCoordinates } from '../utils/geocoder.js';
+import { emitEvent } from '../config/socket.js';
 
 // ─────────────────────────────────────────────
 // POST /api/listings — Create a food listing
@@ -76,6 +77,9 @@ export const createListing = async (req, res) => {
     // Populate provider info for the response
     await listing.populate('providerId', 'name email phone');
 
+    // Broadcast real-time listing creation via Socket.io
+    emitEvent('listing:created', listing.toObject ? listing.toObject() : listing);
+
     res.status(201).json({
       status: 'success',
       message: 'Food listing created successfully',
@@ -109,7 +113,9 @@ export const getListings = async (req, res) => {
   try {
     const {
       category, foodType, priceType,
-      status, city, lat, lng, maxDistance, sortByDistance,
+      status, city,
+      userLat, userLng, radius,
+      lat, lng, maxDistance, sortByDistance,
       page = 1, limit = 20, sort = '-createdAt'
     } = req.query;
 
@@ -142,47 +148,102 @@ export const getListings = async (req, res) => {
       filter.pickupCity = { $regex: city, $options: 'i' };
     }
 
-    // Only show listings whose deadline hasn't passed
-    filter.pickupDeadline = { $gt: new Date() };
+    // Only show listings whose deadline hasn't passed (unless querying non-AVAILABLE admin audit logs)
+    if (!status || status === 'AVAILABLE') {
+      filter.pickupDeadline = { $gt: new Date() };
+    }
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
     const skip = (pageNum - 1) * limitNum;
 
-    // Fetch listings
-    let listings = await FoodListing.find(filter)
-      .populate('providerId', 'name email phone')
-      .sort(sort)
-      .lean();
+    // Support both userLat/userLng (+ radius) and legacy lat/lng (+ maxDistance)
+    const rawLat = userLat !== undefined ? userLat : lat;
+    const rawLng = userLng !== undefined ? userLng : lng;
+    const parsedLat = parseFloat(rawLat);
+    const parsedLng = parseFloat(rawLng);
+    const hasCoordinates = Number.isFinite(parsedLat) && Number.isFinite(parsedLng);
 
-    // Calculate distance if coordinates provided
-    const userLat = parseFloat(lat);
-    const userLng = parseFloat(lng);
-    const hasCoordinates = !isNaN(userLat) && !isNaN(userLng);
+    let listings = [];
 
     if (hasCoordinates) {
-      listings = listings.map(l => {
-        let dist = null;
-        if (l.pickupLat !== undefined && l.pickupLng !== undefined) {
-          dist = calculateHaversineDistance(userLat, userLng, l.pickupLat, l.pickupLng);
-        }
-        return { ...l, distance: dist };
-      });
+      const parsedRadius = radius !== undefined && radius !== ''
+        ? parseFloat(radius)
+        : (maxDistance !== undefined && maxDistance !== '' ? parseFloat(maxDistance) : 25);
+      const radiusKm = Number.isFinite(parsedRadius) && parsedRadius > 0 ? parsedRadius : 25;
 
-      // Filter by maxDistance if specified
-      if (maxDistance !== undefined && !isNaN(parseFloat(maxDistance))) {
-        const maxDistKm = parseFloat(maxDistance);
-        listings = listings.filter(l => l.distance !== null && l.distance <= maxDistKm);
+      try {
+        const aggPipeline = [
+          {
+            $geoNear: {
+              near: { type: 'Point', coordinates: [parsedLng, parsedLat] },
+              distanceField: 'distanceMeters',
+              maxDistance: radiusKm * 1000,
+              spherical: true,
+              query: filter
+            }
+          },
+          { $sort: { distanceMeters: 1 } },
+          {
+            $lookup: {
+              from: 'users',
+              localField: 'providerId',
+              foreignField: '_id',
+              as: 'providerInfo'
+            }
+          },
+          {
+            $addFields: {
+              providerId: {
+                $let: {
+                  vars: { prov: { $arrayElemAt: ['$providerInfo', 0] } },
+                  in: {
+                    _id: '$$prov._id',
+                    name: '$$prov.name',
+                    email: '$$prov.email',
+                    phone: '$$prov.phone'
+                  }
+                }
+              },
+              distance: {
+                $round: [{ $divide: ['$distanceMeters', 1000] }, 1]
+              }
+            }
+          },
+          { $project: { providerInfo: 0, distanceMeters: 0 } }
+        ];
+
+        listings = await FoodListing.aggregate(aggPipeline);
+      } catch (geoErr) {
+        // Fallback to Haversine calculation if 2dsphere index is not yet built
+        console.warn('Geospatial $geoNear fallback:', geoErr.message);
+        listings = await FoodListing.find(filter)
+          .populate('providerId', 'name email phone')
+          .sort(sort || '-createdAt')
+          .lean();
+
+        listings = listings
+          .map(l => {
+            const pLat = l.pickupLat ?? l.location?.coordinates?.[1];
+            const pLng = l.pickupLng ?? l.location?.coordinates?.[0];
+            let dist = null;
+            if (pLat !== undefined && pLng !== undefined) {
+              dist = Number(calculateHaversineDistance(parsedLat, parsedLng, pLat, pLng).toFixed(1));
+            }
+            return { ...l, distance: dist };
+          })
+          .filter(l => l.distance !== null && l.distance <= radiusKm)
+          .sort((a, b) => a.distance - b.distance);
       }
 
-      // Sort by distance if requested
-      if (sortByDistance === 'true') {
-        listings.sort((a, b) => {
-          if (a.distance === null) return 1;
-          if (b.distance === null) return -1;
-          return a.distance - b.distance;
-        });
+      if (sortByDistance === 'false') {
+        listings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       }
+    } else {
+      listings = await FoodListing.find(filter)
+        .populate('providerId', 'name email phone')
+        .sort(sort || '-createdAt')
+        .lean();
     }
 
     const total = listings.length;

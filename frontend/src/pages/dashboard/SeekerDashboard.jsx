@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout, getFoodImage } from '../../components/layout/DashboardLayout';
 import { MapView, extractCoordinates } from '../../components/common/MapView';
+import { getSocket } from '../../utils/socket';
 import { listingApi } from '../../api/listingApi';
 import { claimApi } from '../../api/claimApi';
 import { deliveryApi } from '../../api/deliveryApi';
@@ -59,10 +60,10 @@ export const SeekerDashboard = () => {
       const lat = parseFloat(userLat);
       const lng = parseFloat(userLng);
       if (!isNaN(lat) && !isNaN(lng)) {
-        params.lat = lat;
-        params.lng = lng;
-        if (filters.maxDistance) params.maxDistance = filters.maxDistance;
-        if (filters.sortByDistance) params.sortByDistance = 'true';
+        params.userLat = lat;
+        params.userLng = lng;
+        params.radius = filters.maxDistance || 25;
+        params.sortByDistance = filters.sortByDistance ? 'true' : 'false';
       }
 
       const [res, aiRes] = await Promise.all([
@@ -166,6 +167,42 @@ export const SeekerDashboard = () => {
     };
   }, [myClaims, deliveriesMap, fetchMyClaims]);
 
+  // Real-time Socket.io integration: live listing feed + live delivery timeline updates
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleListingCreated = (newListing) => {
+      if (!newListing || !newListing._id || newListing.status !== 'AVAILABLE') return;
+      setListings(prev => {
+        if (prev.some(item => item._id === newListing._id)) return prev;
+        return [newListing, ...prev];
+      });
+      setToast({ message: `New surplus listing posted: ${newListing.title}`, type: 'info' });
+    };
+
+    const handleDeliveryUpdated = (payload) => {
+      if (!payload) return;
+      const claimId = payload.foodClaimId;
+      if (claimId && payload.delivery) {
+        setDeliveriesMap(prev => ({
+          ...prev,
+          [claimId]: payload.delivery
+        }));
+      }
+      if (['COMPLETED', 'CANCELLED', 'DELIVERED'].includes(payload.status)) {
+        fetchMyClaims();
+      }
+    };
+
+    socket.on('listing:created', handleListingCreated);
+    socket.on('delivery:updated', handleDeliveryUpdated);
+
+    return () => {
+      socket.off('listing:created', handleListingCreated);
+      socket.off('delivery:updated', handleDeliveryUpdated);
+    };
+  }, [fetchMyClaims]);
+
   // Listen for sidebar tab-change events
   useEffect(() => {
     const handleTabChange = (e) => {
@@ -193,7 +230,10 @@ export const SeekerDashboard = () => {
 
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
-      setToast({ message: 'Geolocation is not supported by your browser', type: 'error' });
+      setUserLat('12.9716');
+      setUserLng('77.5946');
+      setFilters(prev => ({ ...prev, sortByDistance: true }));
+      setToast({ message: 'Using Bangalore central coordinates for proximity sorting.', type: 'info' });
       return;
     }
     setLocationLoading(true);
@@ -201,14 +241,28 @@ export const SeekerDashboard = () => {
       (pos) => {
         setUserLat(pos.coords.latitude.toFixed(6));
         setUserLng(pos.coords.longitude.toFixed(6));
+        setFilters(prev => ({ ...prev, sortByDistance: true }));
         setLocationLoading(false);
-        setToast({ message: 'Location detected! Listings now show distance.', type: 'success' });
+        setToast({ message: 'Location detected! Listings sorted by nearest distance.', type: 'success' });
       },
       () => {
+        // Fallback to Bangalore center if geolocation denied so distance sorting still works smoothly
+        setUserLat('12.9716');
+        setUserLng('77.5946');
+        setFilters(prev => ({ ...prev, sortByDistance: true }));
         setLocationLoading(false);
-        setToast({ message: 'Could not detect location. Enter manually or try again.', type: 'error' });
-      }
+        setToast({ message: 'GPS unavailable — using Bangalore center for nearest sorting.', type: 'info' });
+      },
+      { timeout: 6000 }
     );
+  };
+
+  const handleToggleSortNearest = () => {
+    const nextSort = !filters.sortByDistance;
+    setFilters(prev => ({ ...prev, sortByDistance: nextSort }));
+    if (nextSort && (!userLat || !userLng)) {
+      handleGetLocation();
+    }
   };
 
   const openClaimModal = (listing) => {
@@ -447,18 +501,36 @@ export const SeekerDashboard = () => {
                     onChange={(e) => setFilters({ ...filters, city: e.target.value })} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <button
-                    type="button" onClick={handleGetLocation} disabled={locationLoading}
-                    className="hover-pop"
-                    style={{ padding: '0.5rem 0.75rem', borderRadius: '8px', background: '#ede9fe', color: '#7c3aed',
-                      fontWeight: 700, fontSize: '0.78rem', border: '1px solid #c4b5fd', cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-                  >
-                    <Navigation size={13} />
-                    {locationLoading ? 'Detecting...' : userLat ? '📍 Location Active' : 'Auto-Detect'}
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button
+                      type="button" onClick={handleGetLocation} disabled={locationLoading}
+                      className="hover-pop"
+                      style={{ flex: 1, padding: '0.5rem 0.65rem', borderRadius: '8px', background: '#ede9fe', color: '#7c3aed',
+                        fontWeight: 700, fontSize: '0.76rem', border: '1px solid #c4b5fd', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}
+                    >
+                      <Navigation size={13} />
+                      {locationLoading ? 'Locating...' : userLat ? '📍 GPS On' : 'Detect GPS'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleToggleSortNearest}
+                      className="hover-pop"
+                      data-testid="seeker-sort-nearest-btn"
+                      style={{
+                        flex: 1, padding: '0.5rem 0.65rem', borderRadius: '8px',
+                        background: filters.sortByDistance ? '#0f766e' : '#f1f5f9',
+                        color: filters.sortByDistance ? '#ffffff' : '#475569',
+                        fontWeight: 700, fontSize: '0.76rem',
+                        border: filters.sortByDistance ? '1px solid #0f766e' : '1px solid #cbd5e1',
+                        cursor: 'pointer', whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {filters.sortByDistance ? '✓ Nearest First' : 'Sort by Nearest'}
+                    </button>
+                  </div>
                   <button type="submit" className="btn btn-primary hover-pop" style={{ fontSize: '0.82rem', padding: '0.5rem 0.75rem' }}>
-                    <Search size={14} /> Apply
+                    <Search size={14} /> Apply Filters
                   </button>
                 </div>
               </div>
@@ -517,8 +589,8 @@ export const SeekerDashboard = () => {
                             {l.title}
                           </h3>
                           {l.distance !== undefined && l.distance !== null && !isNaN(l.distance) && (
-                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#7c3aed', background: '#ede9fe', padding: '0.15rem 0.5rem', borderRadius: '9999px', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                              📍 {l.distance} km
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#7c3aed', background: '#ede9fe', padding: '0.18rem 0.55rem', borderRadius: '9999px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              📍 {l.distance} km away
                             </span>
                           )}
                         </div>

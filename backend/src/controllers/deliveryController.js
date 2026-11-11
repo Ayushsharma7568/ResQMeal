@@ -4,6 +4,22 @@ import FoodClaim from '../models/FoodClaim.js';
 import FoodListing from '../models/FoodListing.js';
 import { sendNotification } from '../services/notificationService.js';
 import { calculateHaversineDistance } from '../utils/distance.js';
+import { emitEvent } from '../config/socket.js';
+
+const emitDeliveryUpdate = (delivery) => {
+  if (!delivery) return;
+  const rawClaimId = delivery.foodClaimId?._id || delivery.foodClaimId;
+  emitEvent('delivery:updated', {
+    deliveryId: delivery._id?.toString(),
+    foodClaimId: rawClaimId ? rawClaimId.toString() : null,
+    status: delivery.status,
+    acceptedAt: delivery.acceptedAt,
+    pickedUpAt: delivery.pickedUpAt,
+    deliveredAt: delivery.deliveredAt,
+    completedAt: delivery.completedAt,
+    delivery: delivery.toObject ? delivery.toObject() : delivery
+  });
+};
 
 // ─────────────────────────────────────────────
 // POST /api/deliveries — Create delivery task for an APPROVED claim
@@ -74,6 +90,8 @@ export const createDeliveryTask = async (req, res) => {
       { path: 'providerId', select: 'name email phone' },
       { path: 'seekerId', select: 'name email phone' }
     ]);
+
+    emitDeliveryUpdate(delivery);
 
     res.status(201).json({
       status: 'success',
@@ -272,6 +290,8 @@ export const acceptTask = async (req, res) => {
       })
     ]);
 
+    emitDeliveryUpdate(delivery);
+
     res.status(200).json({
       status: 'success',
       message: 'Pickup task accepted successfully',
@@ -409,6 +429,8 @@ export const markPickedUp = async (req, res) => {
       relatedEntityId: delivery._id
     }).catch(err => console.error('Notification error on pickup:', err));
 
+    emitDeliveryUpdate(delivery);
+
     res.status(200).json({
       status: 'success',
       message: 'Food marked as picked up successfully',
@@ -497,6 +519,8 @@ export const markDelivered = async (req, res) => {
       relatedEntityId: delivery._id
     }).catch(err => console.error('Notification error on delivery:', err));
 
+    emitDeliveryUpdate(delivery);
+
     res.status(200).json({
       status: 'success',
       message: 'Food marked as delivered successfully',
@@ -578,6 +602,8 @@ export const confirmReceipt = async (req, res) => {
       { path: 'seekerId', select: 'name email phone' },
       { path: 'volunteerId', select: 'name email phone' }
     ]);
+
+    emitDeliveryUpdate(delivery);
 
     res.status(200).json({
       status: 'success',
@@ -799,6 +825,8 @@ export const updateDeliveryStatus = async (req, res) => {
       { path: 'seekerId', select: 'name email phone' },
       { path: 'volunteerId', select: 'name email phone' }
     ]);
+
+    emitDeliveryUpdate(delivery);
 
     res.status(200).json({
       status: 'success',
