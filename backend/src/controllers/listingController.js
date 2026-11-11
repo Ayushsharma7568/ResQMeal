@@ -1,6 +1,7 @@
 import { validationResult } from 'express-validator';
 import FoodListing from '../models/FoodListing.js';
 import { calculateHaversineDistance } from '../utils/distance.js';
+import { resolveListingCoordinates } from '../utils/geocoder.js';
 
 // ─────────────────────────────────────────────
 // POST /api/listings — Create a food listing
@@ -20,8 +21,8 @@ export const createListing = async (req, res) => {
       title, description, foodItems,
       priceType, price,
       pickupAddress, pickupCity, pickupState, pickupPincode,
-      pickupLat, pickupLng, pickupInstructions,
-      availableFrom, pickupDeadline, photoUrl
+      pickupLat, pickupLng, latitude, longitude, location,
+      pickupInstructions, availableFrom, pickupDeadline, photoUrl
     } = req.body;
 
     // Validate pickupDeadline is after availableFrom
@@ -40,6 +41,19 @@ export const createListing = async (req, res) => {
       });
     }
 
+    // Automatically resolve coordinates via lookup dictionary / Nominatim / Bangalore fallback if missing
+    const resolvedCoords = await resolveListingCoordinates({
+      pickupLat,
+      pickupLng,
+      latitude,
+      longitude,
+      location,
+      pickupAddress,
+      pickupCity,
+      pickupState,
+      pickupPincode
+    });
+
     const listing = await FoodListing.create({
       providerId: req.user._id,
       title,
@@ -51,8 +65,8 @@ export const createListing = async (req, res) => {
       pickupCity,
       pickupState,
       pickupPincode,
-      pickupLat,
-      pickupLng,
+      pickupLat: resolvedCoords.pickupLat,
+      pickupLng: resolvedCoords.pickupLng,
       pickupInstructions,
       availableFrom,
       pickupDeadline,
@@ -297,6 +311,28 @@ export const updateListing = async (req, res) => {
         status: 'error',
         message: 'Pickup deadline must be after the available-from time'
       });
+    }
+
+    // Resolve coordinates if address changed, coordinates were passed, or listing lacks valid coords
+    const addressChanged = ['pickupAddress', 'pickupCity', 'pickupState', 'pickupPincode']
+      .some(f => req.body[f] !== undefined);
+    const coordsProvided = ['pickupLat', 'pickupLng', 'latitude', 'longitude', 'location']
+      .some(f => req.body[f] !== undefined);
+
+    if (addressChanged || coordsProvided || !listing.pickupLat || !listing.pickupLng) {
+      const resolvedCoords = await resolveListingCoordinates({
+        pickupLat: req.body.pickupLat ?? (addressChanged && !coordsProvided ? undefined : listing.pickupLat),
+        pickupLng: req.body.pickupLng ?? (addressChanged && !coordsProvided ? undefined : listing.pickupLng),
+        latitude: req.body.latitude,
+        longitude: req.body.longitude,
+        location: req.body.location,
+        pickupAddress: listing.pickupAddress,
+        pickupCity: listing.pickupCity,
+        pickupState: listing.pickupState,
+        pickupPincode: listing.pickupPincode
+      });
+      listing.pickupLat = resolvedCoords.pickupLat;
+      listing.pickupLng = resolvedCoords.pickupLng;
     }
 
     await listing.save();

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout, getFoodImage } from '../../components/layout/DashboardLayout';
-import { MapView } from '../../components/common/MapView';
+import { MapView, extractCoordinates } from '../../components/common/MapView';
 import { listingApi } from '../../api/listingApi';
 import { claimApi } from '../../api/claimApi';
 import { deliveryApi } from '../../api/deliveryApi';
@@ -262,12 +262,14 @@ export const SeekerDashboard = () => {
 
   const mapCenter = (() => {
     if (userLat && userLng) return [parseFloat(userLat), parseFloat(userLng)];
-    const first = listings.find(l => l.pickupLat && l.pickupLng);
-    if (first) return [first.pickupLat, first.pickupLng];
+    for (const l of listings) {
+      const coords = extractCoordinates(l);
+      if (coords) return [coords.lat, coords.lng];
+    }
     return [22.5, 79.0];
   })();
 
-  const geoListings = listings.filter(l => l.pickupLat && l.pickupLng);
+  const geoListings = listings.filter(l => extractCoordinates(l) !== null);
 
   // Active Claims: Count all non-completed and non-cancelled claims
   // (including statuses: PENDING, ACCEPTED, APPROVED, ASSIGNED, PICKED_UP, IN_TRANSIT, DELIVERED)
@@ -604,7 +606,7 @@ export const SeekerDashboard = () => {
                     <MapView
                       listings={listings}
                       center={mapCenter}
-                      zoom={userLat && userLng ? 12 : 5}
+                      zoom={userLat && userLng ? 12 : (geoListings.length > 0 ? 12 : 5)}
                       height="440px"
                       userLocation={userLat && userLng ? { lat: parseFloat(userLat), lng: parseFloat(userLng), label: 'Your Location' } : null}
                       onListingClick={openClaimModal}
@@ -665,7 +667,7 @@ export const SeekerDashboard = () => {
               <MapView
                 listings={listings}
                 center={mapCenter}
-                zoom={userLat && userLng ? 12 : 5}
+                zoom={userLat && userLng ? 12 : (geoListings.length > 0 ? 12 : 5)}
                 height="520px"
                 userLocation={userLat && userLng ? { lat: parseFloat(userLat), lng: parseFloat(userLng), label: 'Your Location' } : null}
                 onListingClick={openClaimModal}

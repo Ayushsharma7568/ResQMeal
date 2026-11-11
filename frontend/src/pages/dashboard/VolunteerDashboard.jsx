@@ -5,7 +5,7 @@ import { Badge } from '../../components/common/Badge';
 import { Toast } from '../../components/common/Toast';
 import { Skeleton } from '../../components/common/Skeleton';
 import { StatusTimeline } from '../../components/common/StatusTimeline';
-import { MapView } from '../../components/common/MapView';
+import { MapView, extractCoordinates } from '../../components/common/MapView';
 import { AnimatedCounter } from '../../components/common/AnimatedCounter';
 import { motion } from 'framer-motion';
 import {
@@ -225,11 +225,18 @@ export const VolunteerDashboard = () => {
     quantity: t.foodListingId?.quantity || 1,
     unit: t.foodListingId?.unit || 'servings',
     category: t.foodListingId?.category || 'MEALS',
+    foodItems: t.foodListingId?.foodItems,
     providerName: t.providerId?.name || 'Food Provider',
-    pickupAddress: t.pickupAddress,
+    pickupAddress: t.pickupAddress || t.foodListingId?.pickupAddress,
+    pickupCity: t.foodListingId?.pickupCity,
+    pickupState: t.foodListingId?.pickupState,
     pickupLat: t.foodListingId?.pickupLat,
     pickupLng: t.foodListingId?.pickupLng,
-    distanceKm: t.pickupDistance,
+    latitude: t.foodListingId?.latitude,
+    longitude: t.foodListingId?.longitude,
+    location: t.foodListingId?.location,
+    pickupDeadline: t.foodListingId?.pickupDeadline,
+    distance: t.pickupDistance,
     status: t.status
   }));
 
@@ -613,7 +620,7 @@ export const VolunteerDashboard = () => {
                 <span className="dash-section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   <MapIcon size={18} color="#0f766e" /> Pickup Map Radar
                 </span>
-                <span className="dash-section-count">{mapListings.filter(l => l.pickupLat).length} plotted</span>
+                <span className="dash-section-count">{mapListings.filter(l => extractCoordinates(l) !== null).length} plotted</span>
               </div>
 
               {!volunteerLocation && (
@@ -743,7 +750,7 @@ export const VolunteerDashboard = () => {
                 </div>
 
                 {/* Map snippet for active delivery */}
-                {task.foodListingId?.pickupLat && task.foodListingId?.pickupLng && (
+                {extractCoordinates(task.foodListingId) && (
                   <div style={{ margin: '1rem 0', borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
                     <div style={{ padding: '0.5rem 1rem', background: '#f1f5f9', fontSize: '0.78rem', fontWeight: 700, color: '#475569' }}>
                       🗺️ Route Map Preview
@@ -753,8 +760,13 @@ export const VolunteerDashboard = () => {
                         _id: task._id,
                         title: `Pickup: ${task.foodListingId.title}`,
                         providerName: task.providerId?.name,
+                        pickupAddress: task.pickupAddress || task.foodListingId?.pickupAddress,
+                        pickupCity: task.foodListingId?.pickupCity,
                         pickupLat: task.foodListingId.pickupLat,
-                        pickupLng: task.foodListingId.pickupLng
+                        pickupLng: task.foodListingId.pickupLng,
+                        latitude: task.foodListingId.latitude,
+                        longitude: task.foodListingId.longitude,
+                        location: task.foodListingId.location
                       }]}
                       height="220px"
                     />

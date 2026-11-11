@@ -6,6 +6,7 @@ import User from './src/models/User.js';
 import FoodListing from './src/models/FoodListing.js';
 import FoodClaim from './src/models/FoodClaim.js';
 import Delivery from './src/models/Delivery.js';
+import { resolveListingCoordinates } from './src/utils/geocoder.js';
 
 // Resolve environment file
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -295,6 +296,40 @@ export const cleanupOrphanedDeliveries = async () => {
   return result.modifiedCount;
 };
 
+export const backfillListingCoordinates = async () => {
+  const missingCoordListings = await FoodListing.find({
+    $or: [
+      { pickupLat: { $exists: false } },
+      { pickupLat: null },
+      { pickupLat: 0 },
+      { pickupLng: { $exists: false } },
+      { pickupLng: null },
+      { pickupLng: 0 }
+    ]
+  });
+
+  if (missingCoordListings.length === 0) return 0;
+
+  let updatedCount = 0;
+  for (const listing of missingCoordListings) {
+    const resolved = await resolveListingCoordinates({
+      pickupAddress: listing.pickupAddress,
+      pickupCity: listing.pickupCity,
+      pickupState: listing.pickupState,
+      pickupPincode: listing.pickupPincode
+    });
+    listing.pickupLat = resolved.pickupLat;
+    listing.pickupLng = resolved.pickupLng;
+    await listing.save();
+    updatedCount++;
+  }
+
+  if (updatedCount > 0) {
+    console.log(`📍 Geocoded and backfilled coordinates for ${updatedCount} existing food listing(s).`);
+  }
+  return updatedCount;
+};
+
 const run = async () => {
   try {
     console.log(`Connecting to MongoDB at: ${MONGODB_URI}...`);
@@ -315,6 +350,9 @@ const run = async () => {
 
     const cleanupCount = await cleanupOrphanedDeliveries();
     console.log(`🧹 Orphaned deliveries cleanup complete: ${cleanupCount} delivery task(s) cleaned.`);
+
+    const backfillCount = await backfillListingCoordinates();
+    console.log(`📍 Coordinate backfill complete: ${backfillCount} listing(s) geocoded.`);
 
     // Verify
     const allUsers = await User.find({ email: { $in: demoUsers.map(d => d.email) } });
