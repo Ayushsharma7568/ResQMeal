@@ -71,6 +71,10 @@ export const createListing = async (req, res) => {
       pickupInstructions,
       availableFrom,
       pickupDeadline,
+      expiresAt: pickupDeadline,
+      escalationTier: 1,
+      isCriticalRescue: false,
+      currentRadiusKm: 2,
       photoUrl
     });
 

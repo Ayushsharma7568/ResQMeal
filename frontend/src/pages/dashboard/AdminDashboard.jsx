@@ -11,6 +11,7 @@ import { Skeleton } from '../../components/common/Skeleton';
 import { Toast } from '../../components/common/Toast';
 import { AnimatedCounter } from '../../components/common/AnimatedCounter';
 import { ImpactAnalyticsSection } from '../../components/dashboard/ImpactAnalyticsSection';
+import { getSocket } from '../../utils/socket';
 import { motion } from 'framer-motion';
 import {
   Shield, Users, Package, Heart, Truck, Search,
@@ -82,6 +83,27 @@ export const AdminDashboard = () => {
 
   useEffect(() => {
     fetchAdminData();
+  }, []);
+
+  // Real-time dispatch escalation updates
+  useEffect(() => {
+    const socket = getSocket();
+    const handleEscalation = (payload) => {
+      if (!payload || !payload.listingId) return;
+      setListings(prev => prev.map(l => {
+        if (l._id?.toString() === payload.listingId.toString()) {
+          return {
+            ...l,
+            escalationTier: payload.tier,
+            isCriticalRescue: payload.isCriticalRescue,
+            currentRadiusKm: payload.currentRadiusKm
+          };
+        }
+        return l;
+      }));
+    };
+    socket.on('dispatch:escalation', handleEscalation);
+    return () => socket.off('dispatch:escalation', handleEscalation);
   }, []);
 
   // Listen for sidebar tab-change events
@@ -203,8 +225,10 @@ export const AdminDashboard = () => {
     visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } }
   };
 
+  const escalatedCount = listings.filter(l => l.isCriticalRescue || (l.escalationTier && l.escalationTier >= 2) || (l.pickupDeadline && new Date(l.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000)).length;
+
   const kpiCards = [
-    { label: 'Total Listings', value: totalListings, sub: `${activeListings} active now`, icon: <Package size={20} color="#0f766e" />, variant: 'teal', iconBg: 'rgba(204, 251, 241, 0.8)', tab: 'listings' },
+    { label: 'Total Listings', value: totalListings, sub: `${activeListings} active • ${escalatedCount} in dispatch queue`, icon: <Package size={20} color="#0f766e" />, variant: 'teal', iconBg: 'rgba(204, 251, 241, 0.8)', tab: 'listings' },
     { label: 'Platform Users', value: users.length, sub: `${users.filter(u => u.role === 'FOOD_PROVIDER').length} Providers, ${users.filter(u => u.role === 'FOOD_SEEKER').length} Seekers`, icon: <Users size={20} color="#059669" />, variant: 'green', iconBg: 'rgba(209, 250, 229, 0.8)', tab: 'users' },
     { label: 'Active Deliveries', value: deliveries.filter(d => ['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT'].includes(d.status)).length, sub: `${deliveries.length} total tasks`, icon: <Truck size={20} color="#7c3aed" />, variant: 'purple', iconBg: 'rgba(237, 233, 254, 0.8)', tab: 'deliveries' },
     { label: 'Total Claims', value: totalClaims, sub: `${activeClaims} active`, icon: <FileText size={20} color="#d97706" />, variant: 'amber', iconBg: 'rgba(254, 243, 199, 0.8)', tab: 'overview' },
@@ -629,10 +653,35 @@ export const AdminDashboard = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredListings.map(l => (
+                  {filteredListings.map(l => {
+                    const isCritical = Boolean(l.isCriticalRescue || (l.pickupDeadline && new Date(l.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000));
+                    const isEscalated = Boolean(isCritical || (l.escalationTier && l.escalationTier >= 2));
+
+                    return (
                     <tr key={l._id} style={{ borderBottom: '1px solid #f1f5f9' }} className="table-row-hover">
-                      <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: '#0f172a', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {l.title}
+                      <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: '#0f172a', maxWidth: '240px' }}>
+                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.title}</div>
+                        {isEscalated && (
+                          <div style={{ marginTop: '0.25rem' }}>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontSize: '0.68rem',
+                                fontWeight: 800,
+                                background: isCritical ? '#fee2e2' : '#fef3c7',
+                                color: isCritical ? '#b91c1c' : '#92400e',
+                                border: `1px solid ${isCritical ? '#fca5a5' : '#fde68a'}`
+                              }}
+                            >
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isCritical ? '#ef4444' : '#f59e0b', display: 'inline-block' }} />
+                              Active Dispatch: {isCritical ? `Tier 3 — Critical (${l.currentRadiusKm || 10}km)` : `Tier ${l.escalationTier || 2} — Escalated (${l.currentRadiusKm || 5}km)`}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '0.85rem 1rem', color: '#0f766e', fontWeight: 700 }}>
                         {l.providerId?.name || l.providerId?.organizationName || 'Provider'}
@@ -704,7 +753,8 @@ export const AdminDashboard = () => {
                         )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

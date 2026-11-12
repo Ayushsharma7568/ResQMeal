@@ -134,10 +134,25 @@ export const ProviderDashboard = () => {
 
     socket.on('claim:created', handleClaimCreated);
     socket.on('claim:cancelled', handleClaimCancelled);
+    socket.on('dispatch:escalation', (payload) => {
+      if (!payload || !payload.listingId) return;
+      setMyListings(prev => prev.map(l => {
+        if (l._id?.toString() === payload.listingId.toString()) {
+          return {
+            ...l,
+            escalationTier: payload.tier,
+            isCriticalRescue: payload.isCriticalRescue,
+            currentRadiusKm: payload.currentRadiusKm
+          };
+        }
+        return l;
+      }));
+    });
 
     return () => {
       socket.off('claim:created', handleClaimCreated);
       socket.off('claim:cancelled', handleClaimCancelled);
+      socket.off('dispatch:escalation');
     };
   }, [user]);
 
@@ -560,6 +575,40 @@ export const ProviderDashboard = () => {
 
                     {/* Card Body */}
                     <div className="dash-food-card-body">
+                      {/* Active Dispatch Queue Indicator */}
+                      {(listing.isCriticalRescue || (listing.escalationTier && listing.escalationTier >= 2) || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000)) && (
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            padding: '0.25rem 0.6rem',
+                            borderRadius: '6px',
+                            fontSize: '0.73rem',
+                            fontWeight: 800,
+                            background: (listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000)) ? '#fee2e2' : '#fef3c7',
+                            color: (listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000)) ? '#b91c1c' : '#92400e',
+                            border: `1px solid ${(listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000)) ? '#fca5a5' : '#fde68a'}`,
+                            marginBottom: '0.45rem'
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: '7px',
+                              height: '7px',
+                              borderRadius: '50%',
+                              background: (listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000)) ? '#ef4444' : '#f59e0b',
+                              display: 'inline-block'
+                            }}
+                          />
+                          <span>
+                            Active Dispatch Queue: {(listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000))
+                              ? `Tier 3 — Critical Rescue (${listing.currentRadiusKm || 10}km)`
+                              : `Tier ${listing.escalationTier || 2} — Escalated (${listing.currentRadiusKm || 5}km)`}
+                          </span>
+                        </div>
+                      )}
+
                       <h4 style={{ fontSize: '0.97rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.35rem', lineHeight: 1.3 }}>
                         {listing.title}
                       </h4>

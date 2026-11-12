@@ -155,6 +155,25 @@ const foodListingSchema = new mongoose.Schema({
     type: Date,
     required: [true, 'Pickup deadline is required']
   },
+  expiresAt: {
+    type: Date
+  },
+
+  // ── Dispatch & Escalation Engine ──
+  escalationTier: {
+    type: Number,
+    default: 1,
+    min: 1,
+    max: 3
+  },
+  isCriticalRescue: {
+    type: Boolean,
+    default: false
+  },
+  currentRadiusKm: {
+    type: Number,
+    default: 2
+  },
 
   // ── Status ──
   status: {
@@ -175,8 +194,13 @@ const foodListingSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// ─── GeoJSON Sync Hook ──────────────────────
+// ─── GeoJSON & Expiry Sync Hook ──────────────
 foodListingSchema.pre('save', function syncGeoLocation(next) {
+  // Sync expiresAt from pickupDeadline if not set
+  if (!this.expiresAt && this.pickupDeadline) {
+    this.expiresAt = this.pickupDeadline;
+  }
+
   const lat = Number(this.pickupLat);
   const lng = Number(this.pickupLng);
   if (
@@ -200,6 +224,9 @@ foodListingSchema.index({ providerId: 1 });
 foodListingSchema.index({ status: 1 });
 foodListingSchema.index({ availableFrom: 1 });
 foodListingSchema.index({ pickupDeadline: 1 });
+foodListingSchema.index({ expiresAt: 1 });
+foodListingSchema.index({ escalationTier: 1 });
+foodListingSchema.index({ isCriticalRescue: 1 });
 foodListingSchema.index({ priceType: 1 });
 foodListingSchema.index({ 'foodItems.category': 1 });
 foodListingSchema.index({ 'foodItems.foodType': 1 });

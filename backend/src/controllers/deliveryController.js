@@ -82,6 +82,9 @@ export const createDeliveryTask = async (req, res) => {
       status: 'UNASSIGNED',
       pickupAddress: listing.pickupAddress,
       deliveryAddress: deliveryAddress || 'Address specified by seeker',
+      escalationTier: listing.escalationTier || 1,
+      isCriticalRescue: Boolean(listing.isCriticalRescue),
+      currentRadiusKm: listing.currentRadiusKm || 2,
       notes
     });
 
@@ -145,6 +148,20 @@ export const getAvailableTasks = async (req, res) => {
       );
     }
 
+    // Map dispatch escalation fields from delivery or linked food listing
+    deliveries = deliveries.map(d => {
+      const listing = d.foodListingId;
+      const isCritical = Boolean(d.isCriticalRescue || listing?.isCriticalRescue);
+      const tier = d.escalationTier || listing?.escalationTier || (isCritical ? 3 : 1);
+      const radiusKm = d.currentRadiusKm || listing?.currentRadiusKm || (tier === 3 ? 10 : (tier === 2 ? 5 : 2));
+      return {
+        ...d,
+        isCriticalRescue: isCritical,
+        escalationTier: tier,
+        currentRadiusKm: radiusKm
+      };
+    });
+
     // Calculate pickup distance if volunteer coordinates provided
     const vLat = parseFloat(lat);
     const vLng = parseFloat(lng);
@@ -168,11 +185,21 @@ export const getAvailableTasks = async (req, res) => {
 
       if (sortByDistance === 'true') {
         deliveries.sort((a, b) => {
+          // Keep critical rescues prioritized or sorted by distance
+          if (a.isCriticalRescue && !b.isCriticalRescue) return -1;
+          if (!a.isCriticalRescue && b.isCriticalRescue) return 1;
           if (a.pickupDistance === null) return 1;
           if (b.pickupDistance === null) return -1;
           return a.pickupDistance - b.pickupDistance;
         });
       }
+    } else {
+      // Default sort: Critical rescues first, then by creation date
+      deliveries.sort((a, b) => {
+        if (a.isCriticalRescue && !b.isCriticalRescue) return -1;
+        if (!a.isCriticalRescue && b.isCriticalRescue) return 1;
+        return 0;
+      });
     }
 
     const total = deliveries.length;

@@ -12,6 +12,8 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import dispatchRoutes from './routes/dispatchRoutes.js';
+import { startDispatchEngine, stopDispatchEngine } from './services/dispatchEngine.js';
 
 // Load environment variables
 dotenv.config();
@@ -65,6 +67,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', adminRoutes);
+app.use('/api/dispatch', dispatchRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -130,11 +133,14 @@ initSocket(server, allowedOrigins);
 
 server.listen(PORT, () => {
   console.log(`🚀 Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  // Start the Autonomous Volunteer Dispatch & Expiry Matching Engine
+  startDispatchEngine(30000);
 });
 
 // Graceful Shutdown
 const handleShutdown = (signal) => {
   console.log(`Received ${signal}. Shutting down gracefully...`);
+  stopDispatchEngine();
   server.close(() => {
     console.log('HTTP server closed. Exiting process.');
     process.exit(0);

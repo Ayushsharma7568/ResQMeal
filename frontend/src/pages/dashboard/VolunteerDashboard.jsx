@@ -118,6 +118,29 @@ export const VolunteerDashboard = () => {
         }
       });
 
+      // Autonomous Dispatch Engine Sorting: Sort Critical Rescue tasks to the top so urgent food is rescued before spoiling
+      unassignedTasks.sort((a, b) => {
+        const aCritical = Boolean(
+          a.isCriticalRescue ||
+          a.foodListingId?.isCriticalRescue ||
+          (a.foodListingId?.pickupDeadline && (new Date(a.foodListingId.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000))
+        );
+        const bCritical = Boolean(
+          b.isCriticalRescue ||
+          b.foodListingId?.isCriticalRescue ||
+          (b.foodListingId?.pickupDeadline && (new Date(b.foodListingId.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000))
+        );
+
+        if (aCritical && !bCritical) return -1;
+        if (!aCritical && bCritical) return 1;
+
+        if (sortByNearest && a.pickupDistance != null && b.pickupDistance != null) {
+          return a.pickupDistance - b.pickupDistance;
+        }
+
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      });
+
       // Filter assigned tasks (tasks assigned to this volunteer)
       const assignedTasks = rawMy.filter(d => !isDeliveryUnassigned(d));
 
@@ -171,12 +194,30 @@ export const VolunteerDashboard = () => {
       fetchData(false);
     };
 
+    const handleDispatchEscalation = (payload) => {
+      if (!payload) return;
+      if (payload.isCriticalRescue) {
+        setToast({
+          message: payload.message || `URGENT RESCUE: Food expiring soon!`,
+          type: 'warning'
+        });
+      } else if (payload.tier >= 2) {
+        setToast({
+          message: payload.message || `Pickup broadcast escalated (${payload.currentRadiusKm || 5} km radius)`,
+          type: 'info'
+        });
+      }
+      fetchData(false);
+    };
+
     socket.on('listing:created', handleListingCreated);
     socket.on('delivery:updated', handleDeliveryUpdated);
+    socket.on('dispatch:escalation', handleDispatchEscalation);
 
     return () => {
       socket.off('listing:created', handleListingCreated);
       socket.off('delivery:updated', handleDeliveryUpdated);
+      socket.off('dispatch:escalation', handleDispatchEscalation);
     };
   }, [fetchData]);
 
@@ -279,6 +320,9 @@ export const VolunteerDashboard = () => {
     location: t.foodListingId?.location,
     pickupDeadline: t.foodListingId?.pickupDeadline,
     distance: t.pickupDistance,
+    isCriticalRescue: Boolean(t.isCriticalRescue || t.foodListingId?.isCriticalRescue),
+    escalationTier: t.escalationTier || t.foodListingId?.escalationTier || 1,
+    currentRadiusKm: t.currentRadiusKm || t.foodListingId?.currentRadiusKm || 2,
     status: t.status
   }));
 
@@ -559,8 +603,61 @@ export const VolunteerDashboard = () => {
                   gap: '1.25rem'
                 }}
               >
-                {availableTasks.map((task, idx) => (
-                  <motion.div key={task._id} variants={itemVariants} className="dash-food-card hover-lift" style={{ border: '1px solid #e2e8f0', borderRadius: '14px', overflow: 'hidden' }}>
+                {availableTasks.map((task, idx) => {
+                  const isCritical = Boolean(
+                    task.isCriticalRescue ||
+                    task.foodListingId?.isCriticalRescue ||
+                    (task.foodListingId?.pickupDeadline && (new Date(task.foodListingId.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000))
+                  );
+                  const tier = task.escalationTier || task.foodListingId?.escalationTier || (isCritical ? 3 : 1);
+                  const broadcastRadius = task.currentRadiusKm || task.foodListingId?.currentRadiusKm || (tier === 3 ? 10 : (tier === 2 ? 5 : 2));
+
+                  return (
+                  <motion.div
+                    key={task._id}
+                    variants={itemVariants}
+                    className="dash-food-card hover-lift"
+                    style={{
+                      border: isCritical ? '2px solid #ef4444' : '1px solid #e2e8f0',
+                      borderRadius: '14px',
+                      overflow: 'hidden',
+                      boxShadow: isCritical ? '0 4px 20px rgba(239, 68, 68, 0.22)' : '0 2px 8px rgba(0,0,0,0.04)'
+                    }}
+                  >
+                    {/* Animated Pulsing Critical Rescue Banner */}
+                    {isCritical && (
+                      <div
+                        style={{
+                          background: 'linear-gradient(90deg, #dc2626, #ea580c)',
+                          color: '#ffffff',
+                          padding: '0.45rem 0.85rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          fontWeight: 800,
+                          fontSize: '0.76rem',
+                          letterSpacing: '0.04em',
+                          textTransform: 'uppercase',
+                          boxShadow: '0 2px 8px rgba(220, 38, 38, 0.35)'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <span style={{ fontSize: '1rem' }}>🚨</span>
+                          <span style={{ fontWeight: 900 }}>CRITICAL RESCUE — EXPIRES SOON</span>
+                        </div>
+                        <span style={{
+                          background: 'rgba(0,0,0,0.3)',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          fontSize: '0.7rem',
+                          fontWeight: 800,
+                          letterSpacing: '0.03em'
+                        }}>
+                          URGENT PRIORITY
+                        </span>
+                      </div>
+                    )}
+
                     {/* Food Image */}
                     <div className="dash-food-card-img-wrap" style={{ height: '130px', position: 'relative' }}>
                       <img
@@ -570,8 +667,23 @@ export const VolunteerDashboard = () => {
                         onError={e => { e.target.src = getFoodImage(idx + 1); }}
                       />
                       <div className="dash-food-card-img-overlay" />
-                      <div className="dash-food-card-img-badge">
+                      <div className="dash-food-card-img-badge" style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
                         <Badge status="UNASSIGNED" />
+                        {isCritical && (
+                          <span
+                            style={{
+                              background: '#ef4444',
+                              color: '#fff',
+                              fontSize: '0.7rem',
+                              fontWeight: 800,
+                              padding: '2px 7px',
+                              borderRadius: '6px',
+                              boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
+                            }}
+                          >
+                            ⚠️ EXPIRING SOON
+                          </span>
+                        )}
                       </div>
                       {task.pickupDistance !== undefined && task.pickupDistance !== null && (
                         <div
@@ -590,9 +702,27 @@ export const VolunteerDashboard = () => {
                           <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: 0, lineHeight: 1.3 }}>
                             {task.foodListingId?.title || 'Food Surplus Pickup'}
                           </h3>
-                          <span style={{ fontSize: '0.78rem', color: '#0f766e', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.25rem' }}>
-                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#059669', display: 'inline-block' }} /> Ready for Immediate Pickup
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
+                            <span style={{ fontSize: '0.78rem', color: '#0f766e', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#059669', display: 'inline-block' }} /> Ready for Immediate Pickup
+                            </span>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                fontSize: '0.73rem',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                background: tier === 3 ? '#fee2e2' : (tier === 2 ? '#fef3c7' : '#f0fdf4'),
+                                color: tier === 3 ? '#b91c1c' : (tier === 2 ? '#92400e' : '#166534'),
+                                border: `1px solid ${tier === 3 ? '#fca5a5' : (tier === 2 ? '#fde68a' : '#bbf7d0')}`
+                              }}
+                            >
+                              📡 Broadcast: {broadcastRadius} km radius
+                            </span>
+                          </div>
                         </div>
                         <button
                           type="button"
@@ -602,8 +732,8 @@ export const VolunteerDashboard = () => {
                             padding: '0.45rem 0.85rem',
                             fontSize: '0.82rem',
                             fontWeight: 800,
-                            background: acceptingTaskId === task._id ? '#94a3b8' : '#0f766e',
-                            boxShadow: '0 2px 8px rgba(15, 118, 110, 0.25)'
+                            background: acceptingTaskId === task._id ? '#94a3b8' : (isCritical ? '#dc2626' : '#0f766e'),
+                            boxShadow: isCritical ? '0 2px 8px rgba(220, 38, 38, 0.35)' : '0 2px 8px rgba(15, 118, 110, 0.25)'
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -613,7 +743,7 @@ export const VolunteerDashboard = () => {
                           data-testid={`top-accept-btn-${task._id}`}
                           aria-label="Accept Pickup"
                         >
-                          {acceptingTaskId === task._id ? 'Assigning...' : 'Accept Pickup'}
+                          {acceptingTaskId === task._id ? 'Assigning...' : (isCritical ? 'Rescue Now' : 'Accept Pickup')}
                         </button>
                       </div>
 
@@ -654,7 +784,9 @@ export const VolunteerDashboard = () => {
                             width: '100%',
                             background: acceptingTaskId === task._id
                               ? '#94a3b8'
-                              : 'linear-gradient(135deg, #0f766e 0%, #059669 100%)',
+                              : (isCritical
+                                ? 'linear-gradient(135deg, #dc2626 0%, #ea580c 100%)'
+                                : 'linear-gradient(135deg, #0f766e 0%, #059669 100%)'),
                             color: '#ffffff',
                             padding: '0.85rem 1.25rem',
                             fontSize: '0.95rem',
@@ -667,7 +799,7 @@ export const VolunteerDashboard = () => {
                             borderRadius: '10px',
                             border: 'none',
                             cursor: actionLoading ? 'not-allowed' : 'pointer',
-                            boxShadow: '0 4px 14px rgba(15, 118, 110, 0.3)',
+                            boxShadow: isCritical ? '0 4px 14px rgba(220, 38, 38, 0.35)' : '0 4px 14px rgba(15, 118, 110, 0.3)',
                             position: 'relative',
                             zIndex: 10
                           }}
@@ -688,7 +820,8 @@ export const VolunteerDashboard = () => {
                       </div>
                     </div>
                   </motion.div>
-                ))}
+                );
+              })}
               </motion.div>
             ) : (
               <div className="dash-empty-state">

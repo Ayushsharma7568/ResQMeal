@@ -67,6 +67,22 @@ const deliverySchema = new mongoose.Schema({
   },
   completedAt: {
     type: Date
+  },
+
+  // ── Dispatch & Escalation Engine ──
+  escalationTier: {
+    type: Number,
+    default: 1,
+    min: 1,
+    max: 3
+  },
+  isCriticalRescue: {
+    type: Boolean,
+    default: false
+  },
+  currentRadiusKm: {
+    type: Number,
+    default: 2
   }
 }, {
   timestamps: true
@@ -78,6 +94,8 @@ deliverySchema.index({ volunteerId: 1 });
 deliverySchema.index({ seekerId: 1 });
 deliverySchema.index({ providerId: 1 });
 deliverySchema.index({ status: 1 });
+deliverySchema.index({ escalationTier: 1 });
+deliverySchema.index({ isCriticalRescue: 1 });
 
 const Delivery = mongoose.model('Delivery', deliverySchema);
 
