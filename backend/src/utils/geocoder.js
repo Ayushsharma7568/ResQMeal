@@ -48,6 +48,23 @@ const BANGALORE_AREAS = {
   'majestic': [12.9767, 77.5713]
 };
 
+const DELHI_AREAS = {
+  'connaught place': [28.6315, 77.2167],
+  'chandni chowk': [28.6562, 77.2300],
+  'karol bagh': [28.6517, 77.1906],
+  'hauz khas': [28.5494, 77.2001],
+  'saket': [28.5245, 77.2066],
+  'lajpat nagar': [28.5677, 77.2433],
+  'rohini': [28.7166, 77.1189],
+  'dwarka': [28.5921, 77.0460],
+  'cyber hub': [28.4950, 77.0895]
+};
+
+const KNOWN_AREAS = {
+  ...BANGALORE_AREAS,
+  ...DELHI_AREAS
+};
+
 const CITY_FALLBACKS = {
   'new delhi': [28.6139, 77.2090],
   'delhi': [28.6139, 77.2090],
@@ -155,8 +172,8 @@ export const resolveListingCoordinates = async ({
     .join(' ')
     .toLowerCase();
 
-  // 2. Internal Bangalore neighborhood lookup (instantaneous, high precision)
-  for (const [areaKey, [baseLat, baseLng]] of Object.entries(BANGALORE_AREAS)) {
+  // 2. Internal neighborhood lookup (Bangalore & Delhi areas - instantaneous, high precision)
+  for (const [areaKey, [baseLat, baseLng]] of Object.entries(KNOWN_AREAS)) {
     if (combinedText.includes(areaKey)) {
       const jittered = withJitter(baseLat, baseLng, 0.0015);
       return { pickupLat: jittered.lat, pickupLng: jittered.lng, source: `area:${areaKey}` };

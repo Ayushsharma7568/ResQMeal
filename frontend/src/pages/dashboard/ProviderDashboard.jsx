@@ -115,11 +115,13 @@ export const ProviderDashboard = () => {
       if (parsed) {
         setFormData(prev => ({
           ...prev,
-          title: parsed.suggestedTitle || prev.title,
-          ...(parsed.suggestedPriceType && { priceType: parsed.suggestedPriceType }),
-          ...(parsed.suggestedPrice !== undefined && parsed.suggestedPrice !== null && { price: parsed.suggestedPrice }),
-          ...(parsed.suggestedCity && { pickupCity: parsed.suggestedCity }),
-          ...(parsed.suggestedAddress && { pickupAddress: parsed.suggestedAddress }),
+          title: parsed.suggestedTitle || parsed.title || prev.title,
+          priceType: parsed.suggestedPriceType || parsed.priceType || prev.priceType,
+          price: (parsed.suggestedPrice !== undefined && parsed.suggestedPrice !== null)
+            ? parsed.suggestedPrice
+            : (parsed.price !== undefined && parsed.price !== null ? parsed.price : prev.price),
+          pickupCity: parsed.suggestedCity || parsed.pickupCity || prev.pickupCity,
+          pickupAddress: parsed.suggestedAddress || parsed.pickupAddress || prev.pickupAddress,
           foodItems: (parsed.foodItems && parsed.foodItems.length > 0) ? parsed.foodItems.map(item => ({
             name: item.name || 'Surplus Item',
             category: item.category || 'COOKED_FOOD',
