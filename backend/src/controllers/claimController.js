@@ -92,6 +92,13 @@ export const createClaim = async (req, res) => {
       relatedEntityId: claim._id
     });
 
+    // Real-Time Socket.io event: Notify Provider immediately
+    const claimData = claim.toObject ? claim.toObject() : claim;
+    emitEvent('claim:created', {
+      claim: claimData,
+      providerId: listing.providerId.toString()
+    });
+
     res.status(201).json({
       status: 'success',
       message: 'Food claim submitted successfully',
@@ -520,6 +527,14 @@ export const cancelClaim = async (req, res) => {
         await listing.save();
       }
     }
+
+    // Real-Time Socket.io event: Notify Provider of claim cancellation
+    const cancelledClaimData = claim.toObject ? claim.toObject() : claim;
+    emitEvent('claim:cancelled', {
+      claimId: claim._id.toString(),
+      claim: cancelledClaimData,
+      providerId: claim.providerId ? claim.providerId.toString() : undefined
+    });
 
     res.status(200).json({
       status: 'success',

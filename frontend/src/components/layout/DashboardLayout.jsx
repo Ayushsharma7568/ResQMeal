@@ -88,10 +88,13 @@ export const DashboardLayout = ({ title, subtitle, children, actions }) => {
         ];
       case 'ADMIN':
         return [
-          { path: '/admin', label: 'Dashboard', icon: Shield },
+          { path: '/admin', label: 'Overview', icon: Shield, hash: 'overview' },
           { path: '/admin', label: 'All Listings', icon: ListChecks, hash: 'listings' },
+          { path: '/admin', label: 'Users & Roles', icon: Users, hash: 'users' },
+          { path: '/admin', label: 'Deliveries & Logistics', icon: Truck, hash: 'deliveries' },
           { path: '/admin', label: 'Claims Audit', icon: FileText, hash: 'claims' },
-          { path: '/admin', label: 'AI Insights', icon: Sparkles, hash: 'ai_assistant' },
+          { path: '/admin', label: 'Analytics & Impact', icon: BarChart2, hash: 'analytics' },
+          { path: '/admin', label: 'AI Assistant', icon: Sparkles, hash: 'ai_assistant' },
           ...common,
         ];
       default:

@@ -173,12 +173,12 @@ export const getListings = async (req, res) => {
       const radiusKm = Number.isFinite(parsedRadius) && parsedRadius > 0 ? parsedRadius : 25;
 
       try {
-        const aggPipeline = [
+        const makeAggPipeline = (maxMeters) => [
           {
             $geoNear: {
               near: { type: 'Point', coordinates: [parsedLng, parsedLat] },
               distanceField: 'distanceMeters',
-              maxDistance: radiusKm * 1000,
+              ...(maxMeters ? { maxDistance: maxMeters } : {}),
               spherical: true,
               query: filter
             }
@@ -213,7 +213,14 @@ export const getListings = async (req, res) => {
           { $project: { providerInfo: 0, distanceMeters: 0 } }
         ];
 
-        listings = await FoodListing.aggregate(aggPipeline);
+        // Query with requested radius first
+        listings = await FoodListing.aggregate(makeAggPipeline(radiusKm * 1000));
+
+        // Fallback: If 0 listings matched within radius, do NOT strictly drop listings;
+        // query all active listings sorted nearest first so listings and Leaflet map pins do not vanish!
+        if (listings.length === 0) {
+          listings = await FoodListing.aggregate(makeAggPipeline(null));
+        }
       } catch (geoErr) {
         // Fallback to Haversine calculation if 2dsphere index is not yet built
         console.warn('Geospatial $geoNear fallback:', geoErr.message);
@@ -222,7 +229,7 @@ export const getListings = async (req, res) => {
           .sort(sort || '-createdAt')
           .lean();
 
-        listings = listings
+        const calculated = listings
           .map(l => {
             const pLat = l.pickupLat ?? l.location?.coordinates?.[1];
             const pLng = l.pickupLng ?? l.location?.coordinates?.[0];
@@ -232,9 +239,23 @@ export const getListings = async (req, res) => {
             }
             return { ...l, distance: dist };
           })
-          .filter(l => l.distance !== null && l.distance <= radiusKm)
-          .sort((a, b) => a.distance - b.distance);
+          .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+
+        const withinRadius = calculated.filter(l => l.distance !== null && l.distance <= radiusKm);
+        listings = withinRadius.length > 0 ? withinRadius : calculated;
       }
+
+      // Ensure pickupLat, pickupLng and GeoJSON location.coordinates are populated on every item
+      listings = listings.map(l => {
+        const latVal = l.pickupLat ?? l.location?.coordinates?.[1];
+        const lngVal = l.pickupLng ?? l.location?.coordinates?.[0];
+        return {
+          ...l,
+          pickupLat: latVal,
+          pickupLng: lngVal,
+          location: l.location || (latVal !== undefined && lngVal !== undefined ? { type: 'Point', coordinates: [lngVal, latVal] } : undefined)
+        };
+      });
 
       if (sortByDistance === 'false') {
         listings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));

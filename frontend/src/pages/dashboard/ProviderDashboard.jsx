@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DashboardLayout, getFoodImage } from '../../components/layout/DashboardLayout';
+import { useAuth } from '../../context/AuthContext';
+import { getSocket } from '../../utils/socket';
 import { listingApi } from '../../api/listingApi';
 import { claimApi } from '../../api/claimApi';
 import { deliveryApi } from '../../api/deliveryApi';
@@ -18,6 +20,7 @@ import {
 } from 'lucide-react';
 
 export const ProviderDashboard = () => {
+  const { user } = useAuth();
   const [myListings, setMyListings] = useState([]);
   const [incomingClaims, setIncomingClaims] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +88,58 @@ export const ProviderDashboard = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Real-Time Socket.io: Live Incoming Claim Notifications
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleClaimCreated = (payload) => {
+      if (!payload || !payload.claim) return;
+      const { claim, providerId } = payload;
+      const currentUserId = user?._id?.toString() || user?.id?.toString();
+
+      // Check if this claim belongs to the logged-in provider
+      const isTargetProvider =
+        (providerId && currentUserId && providerId.toString() === currentUserId) ||
+        (claim.providerId && (
+          claim.providerId._id?.toString() === currentUserId ||
+          claim.providerId.toString() === currentUserId
+        ));
+
+      if (isTargetProvider) {
+        setIncomingClaims(prev => {
+          if (prev.some(c => c._id?.toString() === claim._id?.toString())) {
+            return prev;
+          }
+          return [claim, ...prev];
+        });
+        setToast({
+          message: `New claim request received for "${claim.foodListingId?.title || 'your food surplus'}"!`,
+          type: 'info'
+        });
+      }
+    };
+
+    const handleClaimCancelled = (payload) => {
+      if (!payload) return;
+      const claimId = payload.claimId || payload.claim?._id;
+      if (!claimId) return;
+      setIncomingClaims(prev => prev.map(c => {
+        if (c._id?.toString() === claimId.toString()) {
+          return { ...c, status: 'CANCELLED' };
+        }
+        return c;
+      }));
+    };
+
+    socket.on('claim:created', handleClaimCreated);
+    socket.on('claim:cancelled', handleClaimCancelled);
+
+    return () => {
+      socket.off('claim:created', handleClaimCreated);
+      socket.off('claim:cancelled', handleClaimCancelled);
+    };
+  }, [user]);
 
   // Listen for sidebar tab-change events to scroll to sections
   useEffect(() => {
@@ -510,8 +565,10 @@ export const ProviderDashboard = () => {
                       </h4>
 
                       {listing.description && (
-                        <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.6rem', lineHeight: 1.4,
-                          overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                        <p style={{
+                          fontSize: '0.8rem', color: '#64748b', marginBottom: '0.6rem', lineHeight: 1.4,
+                          overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'
+                        }}>
                           {listing.description}
                         </p>
                       )}

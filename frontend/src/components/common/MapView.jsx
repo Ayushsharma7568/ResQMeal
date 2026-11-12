@@ -97,6 +97,13 @@ export const extractCoordinates = (item) => {
     if (isValidPair(lat, lng)) return { lat, lng };
   }
 
+  // 4. Top-level lat / lng aliases
+  if (item.lat !== undefined && item.lat !== null && item.lng !== undefined && item.lng !== null) {
+    const lat = parseFloat(item.lat);
+    const lng = parseFloat(item.lng);
+    if (isValidPair(lat, lng)) return { lat, lng };
+  }
+
   return null;
 };
 
