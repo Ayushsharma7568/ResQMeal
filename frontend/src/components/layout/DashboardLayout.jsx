@@ -52,6 +52,18 @@ export const DashboardLayout = ({ title, subtitle, children, actions }) => {
     });
   }, [location.pathname]);
 
+  // Synchronize activeHash whenever a tab change event is dispatched
+  useEffect(() => {
+    const handleTabChange = (e) => {
+      const tab = e.detail?.tab;
+      if (tab) {
+        setActiveHash(tab);
+      }
+    };
+    window.addEventListener('dashboard-tab-change', handleTabChange);
+    return () => window.removeEventListener('dashboard-tab-change', handleTabChange);
+  }, []);
+
   const handleLogout = () => {
     logout();
     navigate('/');
@@ -89,12 +101,10 @@ export const DashboardLayout = ({ title, subtitle, children, actions }) => {
       case 'ADMIN':
         return [
           { path: '/admin', label: 'Overview', icon: Shield, hash: 'overview' },
-          { path: '/admin', label: 'All Listings', icon: ListChecks, hash: 'listings' },
-          { path: '/admin', label: 'Users & Roles', icon: Users, hash: 'users' },
+          { path: '/admin', label: 'User Management', icon: Users, hash: 'users' },
+          { path: '/admin', label: 'Food Listings', icon: ListChecks, hash: 'listings' },
           { path: '/admin', label: 'Deliveries & Logistics', icon: Truck, hash: 'deliveries' },
-          { path: '/admin', label: 'Claims Audit', icon: FileText, hash: 'claims' },
-          { path: '/admin', label: 'Analytics & Impact', icon: BarChart2, hash: 'analytics' },
-          { path: '/admin', label: 'AI Assistant', icon: Sparkles, hash: 'ai_assistant' },
+          { path: '/admin', label: 'Impact Analytics', icon: BarChart2, hash: 'analytics' },
           ...common,
         ];
       default:
@@ -156,8 +166,8 @@ export const DashboardLayout = ({ title, subtitle, children, actions }) => {
           const Icon = item.icon;
           const isOnDashboardRoute = location.pathname === item.path;
           const isActive = item.hash
-            ? isOnDashboardRoute && activeHash === item.hash
-            : isOnDashboardRoute && !activeHash && idx === 0;
+            ? isOnDashboardRoute && (activeHash === item.hash || (item.hash === 'overview' && (!activeHash || activeHash === 'overview')))
+            : isOnDashboardRoute && (!activeHash || activeHash === 'overview') && idx === 0;
 
           const handleClick = (e) => {
             if (item.hash) {

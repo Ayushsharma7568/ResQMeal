@@ -64,6 +64,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/users', adminRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

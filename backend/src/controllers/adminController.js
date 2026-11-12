@@ -60,6 +60,43 @@ export const getAdminUsers = async (req, res) => {
 };
 
 /**
+ * PATCH /api/admin/users/:id — Toggle active status or reassign role
+ */
+export const updateAdminUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, isActive } = req.body;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
+
+    if (role && ['FOOD_PROVIDER', 'FOOD_SEEKER', 'VOLUNTEER', 'ADMIN'].includes(role)) {
+      user.role = role;
+    }
+
+    if (typeof isActive === 'boolean') {
+      user.isActive = isActive;
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'User updated successfully',
+      data: { user: user.toObject ? user.toObject() : user }
+    });
+  } catch (err) {
+    console.error('Admin update user error:', err);
+    res.status(500).json({
+      status: 'error',
+      message: err.message || 'Failed to update user'
+    });
+  }
+};
+
+/**
  * GET /api/admin/listings — List all food listings across the entire system
  */
 export const getAdminListings = async (req, res) => {
@@ -114,6 +151,38 @@ export const getAdminListings = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: err.message || 'Failed to fetch listings'
+    });
+  }
+};
+
+/**
+ * PATCH /api/admin/listings/:id — Moderate listing status
+ */
+export const updateAdminListing = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const listing = await FoodListing.findById(id);
+    if (!listing) {
+      return res.status(404).json({ status: 'error', message: 'Food listing not found' });
+    }
+
+    if (status && ['AVAILABLE', 'CLAIMED', 'PICKUP_ASSIGNED', 'PICKED_UP', 'DELIVERED', 'COMPLETED', 'CANCELLED'].includes(status)) {
+      listing.status = status;
+      await listing.save();
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Listing updated successfully',
+      data: { listing: listing.toObject ? listing.toObject() : listing }
+    });
+  } catch (err) {
+    console.error('Admin update listing error:', err);
+    res.status(500).json({
+      status: 'error',
+      message: err.message || 'Failed to update listing'
     });
   }
 };
@@ -299,3 +368,4 @@ export const getAdminAnalytics = async (req, res) => {
     });
   }
 };
+
