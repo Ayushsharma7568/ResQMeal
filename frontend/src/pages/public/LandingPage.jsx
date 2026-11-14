@@ -508,7 +508,7 @@ export const LandingPage = () => {
                 dir: "left"
               },
               {
-                quote: "Our shelter receives fresh, hot meals regularly thanks to Don't Waste It volunteers. It has transformed our daily food budget.",
+                quote: "Our shelter receives fresh, hot meals regularly thanks to MORSL volunteers. It has transformed our daily food budget.",
                 author: "Sister Mary",
                 role: "Hope Community Shelter NGO",
                 dir: "up"

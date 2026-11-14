@@ -108,7 +108,7 @@ export const extractCoordinates = (item) => {
 };
 
 /**
- * Reusable India-focused Map component for Don't Waste It.
+ * Reusable India-focused Map component for MORSL.
  *
  * Props:
  *   listings       — array of FoodListing / Delivery map objects

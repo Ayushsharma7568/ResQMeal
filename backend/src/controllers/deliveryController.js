@@ -185,21 +185,11 @@ export const getAvailableTasks = async (req, res) => {
 
       if (sortByDistance === 'true') {
         deliveries.sort((a, b) => {
-          // Keep critical rescues prioritized or sorted by distance
-          if (a.isCriticalRescue && !b.isCriticalRescue) return -1;
-          if (!a.isCriticalRescue && b.isCriticalRescue) return 1;
           if (a.pickupDistance === null) return 1;
           if (b.pickupDistance === null) return -1;
           return a.pickupDistance - b.pickupDistance;
         });
       }
-    } else {
-      // Default sort: Critical rescues first, then by creation date
-      deliveries.sort((a, b) => {
-        if (a.isCriticalRescue && !b.isCriticalRescue) return -1;
-        if (!a.isCriticalRescue && b.isCriticalRescue) return 1;
-        return 0;
-      });
     }
 
     const total = deliveries.length;

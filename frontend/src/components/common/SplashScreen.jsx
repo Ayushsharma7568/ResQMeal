@@ -5,12 +5,12 @@ import { FoodDoodlesSVG } from './FoodDoodlesSVG';
 
 /**
  * SplashScreen Component
- * Startup intro sequence for Don't Waste It.
+ * Startup intro sequence for MORSL.
  *
  * Sequence (~2.8 seconds):
  * 1. Branded dark green gradient background
  * 2. Glowing Heart Logo entrance (scale 0.8 → 1.0)
- * 3. Title: DON'T WASTE IT
+ * 3. Title: MORSL
  * 4. Subtitle: FOOD RESCUE NETWORK
  * 5. Tagline: "Good food shouldn't become waste."
  * 6. Bottom attribution: Created by Incia · Harsh · Punya · Ayush
@@ -18,7 +18,7 @@ import { FoodDoodlesSVG } from './FoodDoodlesSVG';
 export const SplashScreen = ({ children }) => {
   const [showSplash, setShowSplash] = useState(() => {
     // Check if splash was already played in current session
-    const hasSeen = sessionStorage.getItem('dont_waste_it_splash_shown');
+    const hasSeen = sessionStorage.getItem('morsl_splash_shown') || sessionStorage.getItem('dont_waste_it_splash_shown');
     return !hasSeen;
   });
 
@@ -28,7 +28,7 @@ export const SplashScreen = ({ children }) => {
     // Auto dismiss splash screen after ~2.8s
     const timer = setTimeout(() => {
       setShowSplash(false);
-      sessionStorage.setItem('dont_waste_it_splash_shown', 'true');
+      sessionStorage.setItem('morsl_splash_shown', 'true');
     }, 2800);
 
     return () => clearTimeout(timer);
@@ -109,7 +109,7 @@ export const SplashScreen = ({ children }) => {
                 <Heart size={44} fill="#ffffff" color="#ffffff" />
               </motion.div>
 
-              {/* STEP 3: DON'T WASTE IT Title */}
+              {/* STEP 3: MORSL Title */}
               <motion.h1
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -123,7 +123,7 @@ export const SplashScreen = ({ children }) => {
                   textTransform: 'uppercase'
                 }}
               >
-                DON'T WASTE IT
+                MORSL
               </motion.h1>
 
               {/* STEP 4: FOOD RESCUE NETWORK Subtitle */}

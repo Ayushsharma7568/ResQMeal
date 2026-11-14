@@ -139,7 +139,7 @@ export const DashboardLayout = ({ title, subtitle, children, actions }) => {
           </div>
           <div>
             <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1 }}>
-              Don't Waste It
+              MORSL
             </span>
             <span style={{ display: 'block', fontSize: '0.62rem', fontWeight: 700, color: '#0f766e', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: '2px' }}>
               Food Rescue Network

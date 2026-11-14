@@ -76,7 +76,7 @@ export const Navbar = () => {
           </motion.div>
           <div>
             <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.03em', lineHeight: 1 }}>
-              Don't Waste It
+              MORSL
             </span>
             <span style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: '#0f766e', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: '2px' }}>
               Food Rescue Network

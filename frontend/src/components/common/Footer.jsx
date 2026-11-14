@@ -14,7 +14,7 @@ export const Footer = () => {
               <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#0f766e', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', boxShadow: '0 4px 12px rgba(15, 118, 110, 0.4)' }}>
                 <Heart size={20} fill="#ffffff" />
               </div>
-              <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>Don't Waste It</span>
+              <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>MORSL</span>
             </Link>
             <p style={{ fontSize: '0.9rem', lineHeight: 1.6, color: '#94a3b8' }}>
               Connecting surplus food providers with verified local organizations and community volunteers to prevent food waste and nourish people.
@@ -48,7 +48,7 @@ export const Footer = () => {
             <h4 style={{ color: '#ffffff', fontSize: '0.95rem', fontWeight: 700, marginBottom: '1.2rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contact & Legal</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.9rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Mail size={16} color="#0f766e" /> <span>support@dontwasteit.org</span>
+                <Mail size={16} color="#0f766e" /> <span>support@morsl.org</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Globe size={16} color="#0f766e" /> <span>India Food Rescue Network</span>
@@ -62,7 +62,7 @@ export const Footer = () => {
 
         {/* Bottom copyright */}
         <div style={{ paddingTop: '2rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', fontSize: '0.85rem' }}>
-          <p>© {new Date().getFullYear()} Don't Waste It Platform. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} MORSL Platform. All rights reserved.</p>
           <p style={{ color: '#64748b' }}>Building a zero-waste food ecosystem.</p>
         </div>
       </div>
