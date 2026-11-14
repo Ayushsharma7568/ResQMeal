@@ -151,9 +151,11 @@ export const getAvailableTasks = async (req, res) => {
     // Map dispatch escalation fields from delivery or linked food listing
     deliveries = deliveries.map(d => {
       const listing = d.foodListingId;
-      const isCritical = Boolean(d.isCriticalRescue || listing?.isCriticalRescue);
-      const tier = d.escalationTier || listing?.escalationTier || (isCritical ? 3 : 1);
-      const radiusKm = d.currentRadiusKm || listing?.currentRadiusKm || (tier === 3 ? 10 : (tier === 2 ? 5 : 2));
+      const expiresAt = listing?.expiresAt || listing?.pickupDeadline;
+      const remainingMs = expiresAt ? (new Date(expiresAt).getTime() - Date.now()) : Infinity;
+      const isCritical = Boolean(d.isCriticalRescue || listing?.isCriticalRescue || remainingMs <= 75 * 60 * 1000);
+      const tier = isCritical ? 3 : (d.escalationTier || listing?.escalationTier || 1);
+      const radiusKm = isCritical ? 20 : (d.currentRadiusKm || listing?.currentRadiusKm || (tier === 2 ? 10 : 2));
       return {
         ...d,
         isCriticalRescue: isCritical,
@@ -163,8 +165,10 @@ export const getAvailableTasks = async (req, res) => {
     });
 
     // Calculate pickup distance if volunteer coordinates provided
-    const vLat = parseFloat(lat);
-    const vLng = parseFloat(lng);
+    const rawLat = lat || req.query.userLat;
+    const rawLng = lng || req.query.userLng;
+    const vLat = parseFloat(rawLat);
+    const vLng = parseFloat(rawLng);
     const hasCoordinates = !isNaN(vLat) && !isNaN(vLng);
 
     if (hasCoordinates) {
@@ -178,7 +182,20 @@ export const getAvailableTasks = async (req, res) => {
         return { ...d, pickupDistance: pickupDist };
       });
 
-      if (maxDistance !== undefined && !isNaN(parseFloat(maxDistance))) {
+      const isAnyDistance = maxDistance === 'any' || maxDistance === 'all' || req.query.anyDistance === 'true';
+
+      if (!isAnyDistance) {
+        // Enforce strict dynamic tier fence: Tier 1: 2 km, Tier 2: 10 km, Tier 3: 20 km
+        deliveries = deliveries.filter(d => {
+          if (d.pickupDistance === null || d.pickupDistance === undefined) return false;
+          const tierLimit = d.currentRadiusKm || (d.escalationTier === 3 ? 20 : (d.escalationTier === 2 ? 10 : 2));
+          if (maxDistance !== undefined && maxDistance !== '' && !isNaN(parseFloat(maxDistance))) {
+            const manualMaxKm = parseFloat(maxDistance);
+            return d.pickupDistance <= Math.min(tierLimit, manualMaxKm);
+          }
+          return d.pickupDistance <= tierLimit;
+        });
+      } else if (maxDistance !== undefined && maxDistance !== '' && !isNaN(parseFloat(maxDistance))) {
         const maxKm = parseFloat(maxDistance);
         deliveries = deliveries.filter(d => d.pickupDistance !== null && d.pickupDistance <= maxKm);
       }

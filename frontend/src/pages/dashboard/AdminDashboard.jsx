@@ -226,7 +226,7 @@ export const AdminDashboard = () => {
     visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } }
   };
 
-  const escalatedCount = listings.filter(l => l.isCriticalRescue || (l.escalationTier && l.escalationTier >= 2) || (l.pickupDeadline && new Date(l.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000)).length;
+  const escalatedCount = listings.filter(l => l.isCriticalRescue || (l.escalationTier && l.escalationTier >= 2) || (l.pickupDeadline && new Date(l.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000)).length;
 
   const kpiCards = [
     { label: 'Total Listings', value: totalListings, sub: `${activeListings} active • ${escalatedCount} in dispatch queue`, icon: <Package size={20} color="#0f766e" />, variant: 'teal', iconBg: 'rgba(204, 251, 241, 0.8)', tab: 'listings' },
@@ -655,7 +655,7 @@ export const AdminDashboard = () => {
                 </thead>
                 <tbody>
                   {filteredListings.map(l => {
-                    const isCritical = Boolean(l.isCriticalRescue || (l.pickupDeadline && new Date(l.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000));
+                    const isCritical = Boolean(l.isCriticalRescue || (l.pickupDeadline && new Date(l.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000));
                     const isEscalated = Boolean(isCritical || (l.escalationTier && l.escalationTier >= 2));
 
                     return (
@@ -679,7 +679,7 @@ export const AdminDashboard = () => {
                               }}
                             >
                               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isCritical ? '#ef4444' : '#f59e0b', display: 'inline-block' }} />
-                              Active Dispatch: {isCritical ? `Tier 3 — Critical (${l.currentRadiusKm || 10}km)` : `Tier ${l.escalationTier || 2} — Escalated (${l.currentRadiusKm || 5}km)`}
+                              Active Dispatch: {isCritical ? `Tier 3 — Critical (${l.currentRadiusKm || 20}km)` : `Tier ${l.escalationTier || 2} — Escalated (${l.currentRadiusKm || 10}km)`}
                             </span>
                           </div>
                         )}

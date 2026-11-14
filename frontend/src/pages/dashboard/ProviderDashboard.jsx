@@ -577,7 +577,7 @@ export const ProviderDashboard = () => {
                     {/* Card Body */}
                     <div className="dash-food-card-body">
                       {/* Active Dispatch Queue Indicator */}
-                      {(listing.isCriticalRescue || (listing.escalationTier && listing.escalationTier >= 2) || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000)) && (
+                      {(listing.isCriticalRescue || (listing.escalationTier && listing.escalationTier >= 2) || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000)) && (
                         <div
                           style={{
                             display: 'inline-flex',
@@ -587,9 +587,9 @@ export const ProviderDashboard = () => {
                             borderRadius: '6px',
                             fontSize: '0.73rem',
                             fontWeight: 800,
-                            background: (listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000)) ? '#fee2e2' : '#fef3c7',
-                            color: (listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000)) ? '#b91c1c' : '#92400e',
-                            border: `1px solid ${(listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000)) ? '#fca5a5' : '#fde68a'}`,
+                            background: (listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000)) ? '#fee2e2' : '#fef3c7',
+                            color: (listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000)) ? '#b91c1c' : '#92400e',
+                            border: `1px solid ${(listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000)) ? '#fca5a5' : '#fde68a'}`,
                             marginBottom: '0.45rem'
                           }}
                         >
@@ -598,14 +598,14 @@ export const ProviderDashboard = () => {
                               width: '7px',
                               height: '7px',
                               borderRadius: '50%',
-                              background: (listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000)) ? '#ef4444' : '#f59e0b',
+                              background: (listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000)) ? '#ef4444' : '#f59e0b',
                               display: 'inline-block'
                             }}
                           />
                           <span>
-                            Active Dispatch Queue: {(listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000))
-                              ? `Tier 3 — Critical Rescue (${listing.currentRadiusKm || 10}km)`
-                              : `Tier ${listing.escalationTier || 2} — Escalated (${listing.currentRadiusKm || 5}km)`}
+                            Active Dispatch Queue: {(listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000))
+                              ? `Tier 3 — Critical Rescue (${listing.currentRadiusKm || 20}km)`
+                              : `Tier ${listing.escalationTier || 2} — Escalated (${listing.currentRadiusKm || 10}km)`}
                           </span>
                         </div>
                       )}

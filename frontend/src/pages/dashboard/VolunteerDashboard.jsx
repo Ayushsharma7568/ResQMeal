@@ -111,7 +111,7 @@ export const VolunteerDashboard = () => {
       const rawMy = myRes?.data?.deliveries || myRes?.deliveries || (Array.isArray(myRes?.data) ? myRes.data : []);
 
       // Filter available unassigned tasks
-      const unassignedTasks = rawAvailable.filter(d => isDeliveryUnassigned(d));
+      let unassignedTasks = rawAvailable.filter(d => isDeliveryUnassigned(d));
       // Ensure any unassigned items that appeared in myRes are also grouped properly
       rawMy.forEach(d => {
         if (isDeliveryUnassigned(d) && !unassignedTasks.some(t => t._id?.toString() === d._id?.toString())) {
@@ -119,17 +119,35 @@ export const VolunteerDashboard = () => {
         }
       });
 
+      // Strict dynamic tier fence for volunteer task feeds
+      if (volunteerLocation && maxDistanceFilter !== 'any') {
+        unassignedTasks = unassignedTasks.filter(d => {
+          if (d.pickupDistance == null) return true;
+          const isCrit = Boolean(
+            d.isCriticalRescue ||
+            d.foodListingId?.isCriticalRescue ||
+            (d.foodListingId?.pickupDeadline && (new Date(d.foodListingId.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000))
+          );
+          const t = isCrit ? 3 : (d.escalationTier || d.foodListingId?.escalationTier || 1);
+          const tierLimit = d.currentRadiusKm || d.foodListingId?.currentRadiusKm || (t === 3 ? 20 : (t === 2 ? 10 : 2));
+          if (maxDistanceFilter && !isNaN(parseFloat(maxDistanceFilter))) {
+            return d.pickupDistance <= Math.min(tierLimit, parseFloat(maxDistanceFilter));
+          }
+          return d.pickupDistance <= tierLimit;
+        });
+      }
+
       // Autonomous Dispatch Engine Sorting: Sort Critical Rescue tasks to the top so urgent food is rescued before spoiling
       unassignedTasks.sort((a, b) => {
         const aCritical = Boolean(
           a.isCriticalRescue ||
           a.foodListingId?.isCriticalRescue ||
-          (a.foodListingId?.pickupDeadline && (new Date(a.foodListingId.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000))
+          (a.foodListingId?.pickupDeadline && (new Date(a.foodListingId.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000))
         );
         const bCritical = Boolean(
           b.isCriticalRescue ||
           b.foodListingId?.isCriticalRescue ||
-          (b.foodListingId?.pickupDeadline && (new Date(b.foodListingId.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000))
+          (b.foodListingId?.pickupDeadline && (new Date(b.foodListingId.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000))
         );
 
         if (aCritical && !bCritical) return -1;
@@ -204,7 +222,7 @@ export const VolunteerDashboard = () => {
         });
       } else if (payload.tier >= 2) {
         setToast({
-          message: payload.message || `Pickup broadcast escalated (${payload.currentRadiusKm || 5} km radius)`,
+          message: payload.message || `Pickup broadcast escalated (${payload.currentRadiusKm || (payload.tier === 3 ? 20 : 10)} km radius)`,
           type: 'info'
         });
       }
@@ -518,11 +536,11 @@ export const VolunteerDashboard = () => {
               onChange={(e) => setMaxDistanceFilter(e.target.value)}
               style={{ padding: '0.45rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.82rem', outline: 'none', background: '#fff' }}
             >
-              <option value="">Any distance</option>
-              <option value="2">Within 2 km</option>
-              <option value="5">Within 5 km</option>
-              <option value="10">Within 10 km</option>
-              <option value="25">Within 25 km</option>
+              <option value="">Active Tier Fence (Default)</option>
+              <option value="2">Within 2 km (Tier 1)</option>
+              <option value="10">Within 10 km (Tier 2)</option>
+              <option value="20">Within 20 km (Tier 3)</option>
+              <option value="any">Any distance</option>
             </select>
           </div>
         </div>
@@ -608,10 +626,10 @@ export const VolunteerDashboard = () => {
                   const isCritical = Boolean(
                     task.isCriticalRescue ||
                     task.foodListingId?.isCriticalRescue ||
-                    (task.foodListingId?.pickupDeadline && (new Date(task.foodListingId.pickupDeadline).getTime() - Date.now() <= 45 * 60 * 1000))
+                    (task.foodListingId?.pickupDeadline && (new Date(task.foodListingId.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000))
                   );
                   const tier = task.escalationTier || task.foodListingId?.escalationTier || (isCritical ? 3 : 1);
-                  const broadcastRadius = task.currentRadiusKm || task.foodListingId?.currentRadiusKm || (tier === 3 ? 10 : (tier === 2 ? 5 : 2));
+                  const broadcastRadius = task.currentRadiusKm || task.foodListingId?.currentRadiusKm || (tier === 3 ? 20 : (tier === 2 ? 10 : 2));
 
                   return (
                   <motion.div

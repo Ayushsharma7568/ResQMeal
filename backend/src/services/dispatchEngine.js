@@ -6,9 +6,9 @@ import { emitEvent } from '../config/socket.js';
  * Autonomous Volunteer Dispatch & Expiry Matching Engine
  * Implements multi-tier cascading broadcast and time-decay lifecycle tracking.
  *
- * Tier 1 (Normal): Created within last 15 minutes -> broadcastRadius = 2 km, tier = 1.
- * Tier 2 (Escalated): Unassigned after 15 minutes -> broadcastRadius = 5 km, tier = 2.
- * Tier 3 (Critical Rescue Mode): Shelf life remaining <= 45 minutes -> isCriticalRescue = true, tier = 3, broadcastRadius = 10 km.
+ * Tier 1 (Normal): Created within last 15 minutes -> broadcastRadius = 2 km, escalationTier = 1.
+ * Tier 2 (Regional): Unassigned after 15 minutes AND shelf life remaining > 75 minutes -> broadcastRadius = 10 km, escalationTier = 2.
+ * Tier 3 (Critical Rescue Mode): Shelf life remaining <= 75 minutes -> isCriticalRescue = true, escalationTier = 3, broadcastRadius = 20 km.
  */
 
 // Engine State
@@ -42,18 +42,18 @@ export const calculateListingTier = (listing, now = Date.now()) => {
   let isCriticalRescue = false;
   let currentRadiusKm = 2;
 
-  // Tier 3: Critical Rescue Mode if shelf life remaining <= 45 minutes
-  if (remainingShelfLifeMs <= 45 * 60 * 1000) {
+  // Tier 3: Critical Rescue Mode if shelf life remaining <= 75 minutes (1 hour 15 minutes)
+  if (remainingShelfLifeMs <= 75 * 60 * 1000) {
     tier = 3;
     isCriticalRescue = true;
-    currentRadiusKm = 10;
+    currentRadiusKm = 20;
   } else if (ageMs > 15 * 60 * 1000) {
-    // Tier 2: Escalated if unassigned after 15 minutes
+    // Tier 2 (Regional): Unassigned after 15 minutes AND shelf life remaining > 75 minutes
     tier = 2;
     isCriticalRescue = false;
-    currentRadiusKm = 5;
+    currentRadiusKm = 10;
   } else {
-    // Tier 1: Normal within first 15 minutes
+    // Tier 1 (Normal): Created within last 15 minutes
     tier = 1;
     isCriticalRescue = false;
     currentRadiusKm = 2;
@@ -152,7 +152,7 @@ export const runDispatchCycle = async () => {
 
       const tier = listing.escalationTier || 1;
       const isCriticalRescue = Boolean(listing.isCriticalRescue);
-      const currentRadiusKm = listing.currentRadiusKm || (tier === 3 ? 10 : (tier === 2 ? 5 : 2));
+      const currentRadiusKm = listing.currentRadiusKm || (tier === 3 ? 20 : (tier === 2 ? 10 : 2));
 
       const dPrevTier = delivery.escalationTier || 1;
       const dPrevCritical = Boolean(delivery.isCriticalRescue);
