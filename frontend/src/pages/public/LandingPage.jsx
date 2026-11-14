@@ -10,6 +10,7 @@ import { deliveryApi } from '../../api/deliveryApi';
 import { Badge } from '../../components/common/Badge';
 import { ScrollReveal } from '../../components/common/ScrollReveal';
 import { AnimatedCounter } from '../../components/common/AnimatedCounter';
+import { formatDisplayTime } from '../../utils/dateUtils';
 import {
   Heart, ArrowRight, ShieldCheck, Truck, Users, Building, 
   CheckCircle2, Clock, MapPin, Package, Award, Sparkles, TrendingUp,
@@ -465,7 +466,7 @@ export const LandingPage = () => {
                     <div style={{ backgroundColor: '#f8fafc', padding: '0.65rem 0.85rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.8rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <Clock size={14} color="#d97706" />
-                        <span>Pickup Deadline: {new Date(l.pickupDeadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span>Pickup Deadline: {formatDisplayTime(l.pickupDeadline)}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <MapPin size={14} color="#0f766e" />

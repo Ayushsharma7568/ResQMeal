@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { formatDisplayDate } from '../../utils/dateUtils';
 
 // Fix Leaflet default icon paths (Vite bundler issue)
 delete L.Icon.Default.prototype._getIconUrl;
@@ -220,7 +221,7 @@ export const MapView = ({
                   )}
                   {validDeadline && (
                     <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginBottom: '0.4rem' }}>
-                      ⏰ Pickup by: {validDeadline.toLocaleDateString()}
+                      ⏰ Pickup by: {formatDisplayDate(listing.pickupDeadline || validDeadline)}
                     </div>
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.35rem', gap: '0.5rem' }}>

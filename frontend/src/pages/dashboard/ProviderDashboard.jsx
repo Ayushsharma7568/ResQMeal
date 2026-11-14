@@ -12,6 +12,7 @@ import { Toast } from '../../components/common/Toast';
 import { Skeleton } from '../../components/common/Skeleton';
 import { AnimatedCounter } from '../../components/common/AnimatedCounter';
 import { ImpactAnalyticsSection } from '../../components/dashboard/ImpactAnalyticsSection';
+import { toLocalDatetimeInputString, serializeLocalDatetimeToISO, formatDisplayDate } from '../../utils/dateUtils';
 import { motion } from 'framer-motion';
 import {
   PlusCircle, Package, CheckCircle2, Clock, MapPin,
@@ -51,8 +52,8 @@ export const ProviderDashboard = () => {
     pickupState: '',
     pickupPincode: '',
     pickupInstructions: '',
-    availableFrom: new Date().toISOString().slice(0, 16),
-    pickupDeadline: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    availableFrom: toLocalDatetimeInputString(new Date()),
+    pickupDeadline: toLocalDatetimeInputString(new Date(Date.now() + 4 * 60 * 60 * 1000)),
     photoUrl: '',
     foodItems: [
       {
@@ -242,8 +243,8 @@ export const ProviderDashboard = () => {
       // Sanitize payload to match backend schema enums
       const sanitizedData = {
         ...formData,
-        availableFrom: formData.availableFrom.length === 16 ? formData.availableFrom + ':00' : formData.availableFrom,
-        pickupDeadline: formData.pickupDeadline.length === 16 ? formData.pickupDeadline + ':00' : formData.pickupDeadline,
+        availableFrom: serializeLocalDatetimeToISO(formData.availableFrom),
+        pickupDeadline: serializeLocalDatetimeToISO(formData.pickupDeadline),
         foodItems: formData.foodItems.map(item => ({
           name: item.name,
           category: item.category,
@@ -500,7 +501,7 @@ export const ProviderDashboard = () => {
 
                     <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                       <Clock size={12} />
-                      Requested: {new Date(claim.createdAt).toLocaleString()}
+                      Requested: {formatDisplayDate(claim.createdAt)}
                     </div>
 
                     {claim.status === 'PENDING' && (
@@ -625,7 +626,7 @@ export const ProviderDashboard = () => {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', color: '#475569', marginBottom: '0.85rem', backgroundColor: '#f8fafc', padding: '0.6rem 0.75rem', borderRadius: '9px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                           <Clock size={13} color="#0f766e" />
-                          <span>Deadline: {new Date(listing.pickupDeadline).toLocaleString()}</span>
+                          <span>Deadline: {formatDisplayDate(listing.pickupDeadline)}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                           <MapPin size={13} color="#0f766e" />

@@ -12,6 +12,7 @@ import { Toast } from '../../components/common/Toast';
 import { Skeleton } from '../../components/common/Skeleton';
 import { StatusTimeline } from '../../components/common/StatusTimeline';
 import { AnimatedCounter } from '../../components/common/AnimatedCounter';
+import { formatDisplayDate } from '../../utils/dateUtils';
 import { motion } from 'framer-motion';
 import {
   Search, Filter, MapPin, Clock, Utensils, Heart, CheckCircle2,
@@ -625,7 +626,7 @@ export const SeekerDashboard = () => {
                           </span>
                           <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                             <Clock size={12} color="#d97706" />
-                            {new Date(l.pickupDeadline).toLocaleString()}
+                            {formatDisplayDate(l.pickupDeadline)}
                           </span>
                         </div>
 

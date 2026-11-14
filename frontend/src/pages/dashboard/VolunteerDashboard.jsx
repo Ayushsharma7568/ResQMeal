@@ -8,6 +8,7 @@ import { StatusTimeline } from '../../components/common/StatusTimeline';
 import { MapView, extractCoordinates } from '../../components/common/MapView';
 import { getSocket } from '../../utils/socket';
 import { AnimatedCounter } from '../../components/common/AnimatedCounter';
+import { formatDisplayDate } from '../../utils/dateUtils';
 import { motion } from 'framer-motion';
 import {
   Truck, MapPin, Clock, CheckCircle2, User, Building,
@@ -771,7 +772,7 @@ export const VolunteerDashboard = () => {
                       <div style={{ fontSize: '0.78rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <Clock size={14} color="#d97706" />
                         <span>Deadline: {task.foodListingId?.pickupDeadline
-                          ? new Date(task.foodListingId.pickupDeadline).toLocaleString()
+                          ? formatDisplayDate(task.foodListingId.pickupDeadline)
                           : 'Within 24 Hours'}</span>
                       </div>
 

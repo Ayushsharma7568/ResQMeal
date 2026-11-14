@@ -26,8 +26,11 @@ export const createListing = async (req, res) => {
       pickupInstructions, availableFrom, pickupDeadline, photoUrl
     } = req.body;
 
+    const parsedAvailableFrom = new Date(availableFrom);
+    const parsedPickupDeadline = new Date(pickupDeadline);
+
     // Validate pickupDeadline is after availableFrom
-    if (new Date(pickupDeadline) <= new Date(availableFrom)) {
+    if (parsedPickupDeadline <= parsedAvailableFrom) {
       return res.status(400).json({
         status: 'error',
         message: 'Pickup deadline must be after the available-from time'
@@ -69,9 +72,9 @@ export const createListing = async (req, res) => {
       pickupLat: resolvedCoords.pickupLat,
       pickupLng: resolvedCoords.pickupLng,
       pickupInstructions,
-      availableFrom,
-      pickupDeadline,
-      expiresAt: pickupDeadline,
+      availableFrom: parsedAvailableFrom,
+      pickupDeadline: parsedPickupDeadline,
+      expiresAt: parsedPickupDeadline,
       escalationTier: 1,
       isCriticalRescue: false,
       currentRadiusKm: 2,
@@ -387,7 +390,14 @@ export const updateListing = async (req, res) => {
 
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
-        listing[field] = req.body[field];
+        if (field === 'availableFrom' || field === 'pickupDeadline') {
+          listing[field] = new Date(req.body[field]);
+          if (field === 'pickupDeadline') {
+            listing.expiresAt = new Date(req.body[field]);
+          }
+        } else {
+          listing[field] = req.body[field];
+        }
       }
     }
 

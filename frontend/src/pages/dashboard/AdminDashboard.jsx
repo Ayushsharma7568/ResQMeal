@@ -11,6 +11,7 @@ import { Skeleton } from '../../components/common/Skeleton';
 import { Toast } from '../../components/common/Toast';
 import { AnimatedCounter } from '../../components/common/AnimatedCounter';
 import { ImpactAnalyticsSection } from '../../components/dashboard/ImpactAnalyticsSection';
+import { formatDisplayDate } from '../../utils/dateUtils';
 import { getSocket } from '../../utils/socket';
 import { motion } from 'framer-motion';
 import {
@@ -713,7 +714,7 @@ export const AdminDashboard = () => {
                         </select>
                       </td>
                       <td style={{ padding: '0.85rem 1rem', color: '#64748b', whiteSpace: 'nowrap' }}>
-                        {l.pickupDeadline ? new Date(l.pickupDeadline).toLocaleDateString() : '—'}
+                        {formatDisplayDate(l.pickupDeadline)}
                       </td>
                       <td style={{ padding: '0.85rem 1rem' }}>
                         {l.status === 'AVAILABLE' ? (
