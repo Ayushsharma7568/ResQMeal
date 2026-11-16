@@ -5,7 +5,7 @@
  */
 
 export const KNOWN_CITIES = [
-  'greater noida', 'new delhi', 'delhi', 'bangalore', 'bengaluru', 
+  'greater noida', 'new delhi', 'delhi', 'sonipat', 'sonepat', 'bangalore', 'bengaluru', 
   'mumbai', 'bombay', 'pune', 'hyderabad', 'chennai', 'madras', 
   'kolkata', 'calcutta', 'gurgaon', 'gurugram', 'noida', 'ghaziabad', 
   'faridabad', 'ahmedabad', 'jaipur', 'chandigarh', 'lucknow', 
@@ -16,6 +16,19 @@ export const KNOWN_CITIES = [
 ];
 
 export const AREA_CITY_MAP = {
+  // Sonipat / Haryana NCR
+  'srm university sonipat': 'Sonipat',
+  'srm university delhi ncr': 'Sonipat',
+  'srm university': 'Sonipat',
+  'srm sonipat': 'Sonipat',
+  'srm campus': 'Sonipat',
+  'srm': 'Sonipat',
+  'rajiv gandhi education city': 'Sonipat',
+  'rai': 'Sonipat',
+  'murthal': 'Sonipat',
+  'kundli': 'Sonipat',
+  'sonipat': 'Sonipat',
+  'sonepat': 'Sonipat',
   // Delhi NCR
   'connaught place': 'Delhi',
   'cp': 'Delhi',
@@ -136,7 +149,8 @@ const LANDMARK_SUFFIXES = [
   'sector', 'chowk', 'gali', 'lane', 'avenue', 'bazaar', 'colony', 'enclave',
   'extension', 'phase', 'vihar', 'marg', 'point', 'hub', 'complex', 'mall',
   'square', 'gate', 'cantt', 'cantonment', 'camp', 'cross', 'main', 'junction',
-  'park', 'hills', 'valley', 'estate', 'station', 'west', 'east', 'north', 'south'
+  'park', 'hills', 'valley', 'estate', 'station', 'west', 'east', 'north', 'south',
+  'university', 'campus', 'college', 'institute', 'school'
 ];
 
 const CATEGORY_KEYWORDS = {
@@ -187,7 +201,16 @@ export const toTitleCase = (str) => {
   return str
     .toLowerCase()
     .split(/\s+/)
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .map(word => {
+      if (word === 'srm') return 'SRM';
+      if (word === 'cp') return 'CP';
+      if (word === 'gk') return 'GK';
+      if (word === 'mg') return 'MG';
+      if (word === 'btm') return 'BTM';
+      if (word === 'hsr') return 'HSR';
+      if (word === 'jp') return 'JP';
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
     .join(' ');
 };
 

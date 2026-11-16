@@ -32,25 +32,55 @@ const blueIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-// Helper component to smoothly pan map view when center updates
-const MapPanner = ({ center, zoom }) => {
+// Helper component to smoothly pan map view when center updates or fit bounds when multiple listings exist
+const MapPanner = ({ center, zoom, geoListings = [], userLocation = null }) => {
   const map = useMap();
-  const lat = center?.[0];
-  const lng = center?.[1];
-  const lastCenterRef = React.useRef({ lat: null, lng: null, zoom: null });
+  const lastStateRef = React.useRef({ centerKey: null, boundsKey: null });
 
   useEffect(() => {
-    if (lat !== undefined && lng !== undefined && lat !== null && lng !== null) {
-      if (
-        lastCenterRef.current.lat !== lat ||
-        lastCenterRef.current.lng !== lng ||
-        lastCenterRef.current.zoom !== zoom
-      ) {
-        lastCenterRef.current = { lat, lng, zoom };
-        map.setView([lat, lng], zoom || map.getZoom(), { animate: true });
+    // 1. If user location is explicitly provided, center on user location
+    if (userLocation?.lat && userLocation?.lng && !isNaN(userLocation.lat) && !isNaN(userLocation.lng)) {
+      const uLat = parseFloat(userLocation.lat);
+      const uLng = parseFloat(userLocation.lng);
+      const userKey = `user:${uLat.toFixed(4)},${uLng.toFixed(4)}`;
+      if (lastStateRef.current.centerKey !== userKey) {
+        lastStateRef.current.centerKey = userKey;
+        map.setView([uLat, uLng], zoom || 12, { animate: true });
+      }
+      return;
+    }
+
+    // 2. If multiple listings exist across different areas/cities, fit bounds to display all listings
+    if (geoListings.length > 1) {
+      const boundsKey = geoListings.map(l => `${l._lat.toFixed(3)},${l._lng.toFixed(3)}`).sort().join(';');
+      if (lastStateRef.current.boundsKey !== boundsKey) {
+        lastStateRef.current.boundsKey = boundsKey;
+        const bounds = L.latLngBounds(geoListings.map(l => [l._lat, l._lng]));
+        map.fitBounds(bounds, { padding: [45, 45], maxZoom: 13, animate: true });
+      }
+      return;
+    }
+
+    // 3. Single listing: focus on it
+    if (geoListings.length === 1) {
+      const singleKey = `single:${geoListings[0]._lat.toFixed(4)},${geoListings[0]._lng.toFixed(4)}`;
+      if (lastStateRef.current.centerKey !== singleKey) {
+        lastStateRef.current.centerKey = singleKey;
+        map.setView([geoListings[0]._lat, geoListings[0]._lng], zoom || 13, { animate: true });
+      }
+      return;
+    }
+
+    // 4. Default / explicit center fallback
+    if (center?.[0] && center?.[1]) {
+      const centerKey = `center:${center[0].toFixed(4)},${center[1].toFixed(4)}:${zoom}`;
+      if (lastStateRef.current.centerKey !== centerKey) {
+        lastStateRef.current.centerKey = centerKey;
+        map.setView([center[0], center[1]], zoom || map.getZoom(), { animate: true });
       }
     }
-  }, [lat, lng, zoom, map]);
+  }, [center, zoom, geoListings, userLocation, map]);
+
   return null;
 };
 
@@ -141,9 +171,9 @@ export const MapView = ({
 
   const effectiveCenter = center ||
     (userLocation?.lat && userLocation?.lng ? [parseFloat(userLocation.lat), parseFloat(userLocation.lng)] : null) ||
-    (geoListings.length > 0 ? [geoListings[0]._lat, geoListings[0]._lng] : INDIA_DEFAULT_CENTER);
+    (geoListings.length === 1 ? [geoListings[0]._lat, geoListings[0]._lng] : INDIA_DEFAULT_CENTER);
 
-  const effectiveZoom = zoom || (geoListings.length > 0 || userLocation ? 12 : 5);
+  const effectiveZoom = zoom || (userLocation ? 12 : (geoListings.length === 1 ? 13 : 5));
 
   return (
     <div style={{ height, width: '100%', borderRadius: '16px', overflow: 'hidden', border: '1px solid #cbd5e1', boxShadow: '0 8px 20px rgba(15, 23, 42, 0.06)' }}>
@@ -156,7 +186,7 @@ export const MapView = ({
         style={{ height: '100%', width: '100%', background: '#f8fafc' }}
         scrollWheelZoom={true}
       >
-        <MapPanner center={effectiveCenter} zoom={effectiveZoom} />
+        <MapPanner center={effectiveCenter} zoom={effectiveZoom} geoListings={geoListings} userLocation={userLocation} />
 
         {/* OpenStreetMap TileLayer — No API key needed */}
         <TileLayer

@@ -116,6 +116,35 @@ export const getBangaloreMockListings = (providerId) => {
       availableFrom,
       pickupDeadline: deadline3,
       status: 'AVAILABLE'
+    },
+    {
+      providerId,
+      title: 'Nutritious Campus Meals — SRM University Sonipat',
+      description: 'Wholesome surplus student dining meals including dal makhani, paneer butter masala, steamed jeera rice, and fresh tawa rotis from SRM University campus dining.',
+      foodItems: [
+        {
+          name: 'Campus Dining Thali Meals',
+          category: 'COOKED_FOOD',
+          quantity: 35,
+          unit: 'servings',
+          foodType: 'VEG',
+          description: 'Hygienic warm student mess meals packed with dal makhani, shahi paneer, jeera rice, and fresh rotis',
+          preparedAt: new Date(now.getTime() - 2 * 3600 * 1000),
+          bestBefore: deadline1
+        }
+      ],
+      priceType: 'FREE',
+      price: 0,
+      pickupAddress: 'SRM University Delhi-NCR, Rajiv Gandhi Education City, Post Office P.S. Rai',
+      pickupCity: 'Sonipat',
+      pickupState: 'Haryana',
+      pickupPincode: '131029',
+      pickupLat: 28.9338,
+      pickupLng: 77.1085,
+      pickupInstructions: 'Pick up from Central Dining Hall / Canteen Gate 2. Inform security desk for MORSL food rescue pickup.',
+      availableFrom,
+      pickupDeadline: deadline1,
+      status: 'AVAILABLE'
     }
   ];
 };

@@ -60,14 +60,33 @@ const DELHI_AREAS = {
   'cyber hub': [28.4950, 77.0895]
 };
 
+const HARYANA_NCR_AREAS = {
+  'srm university sonipat': [28.9338, 77.1085],
+  'srm university delhi ncr': [28.9338, 77.1085],
+  'srm university': [28.9338, 77.1085],
+  'srm sonipat': [28.9338, 77.1085],
+  'srm campus': [28.9338, 77.1085],
+  'srm': [28.9338, 77.1085],
+  'rajiv gandhi education city': [28.9388, 77.1122],
+  'post office ps rai': [28.9328, 77.1084],
+  'rai': [28.9328, 77.1084],
+  'sonipat': [28.9931, 77.0151],
+  'sonepat': [28.9931, 77.0151],
+  'kundli': [28.8785, 77.1189],
+  'murthal': [29.0278, 77.0719]
+};
+
 const KNOWN_AREAS = {
   ...BANGALORE_AREAS,
-  ...DELHI_AREAS
+  ...DELHI_AREAS,
+  ...HARYANA_NCR_AREAS
 };
 
 const CITY_FALLBACKS = {
   'new delhi': [28.6139, 77.2090],
   'delhi': [28.6139, 77.2090],
+  'sonipat': [28.9931, 77.0151],
+  'sonepat': [28.9931, 77.0151],
   'mumbai': [19.0760, 72.8777],
   'chennai': [13.0827, 80.2707],
   'hyderabad': [17.3850, 78.4867],

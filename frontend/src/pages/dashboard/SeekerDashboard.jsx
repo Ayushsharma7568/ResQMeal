@@ -317,11 +317,7 @@ export const SeekerDashboard = () => {
 
   const mapCenter = (() => {
     if (userLat && userLng) return [parseFloat(userLat), parseFloat(userLng)];
-    for (const l of listings) {
-      const coords = extractCoordinates(l);
-      if (coords) return [coords.lat, coords.lng];
-    }
-    return [22.5, 79.0];
+    return null;
   })();
 
   const geoListings = listings.filter(l => extractCoordinates(l) !== null);
@@ -679,7 +675,7 @@ export const SeekerDashboard = () => {
                     <MapView
                       listings={listings}
                       center={mapCenter}
-                      zoom={userLat && userLng ? 12 : (geoListings.length > 0 ? 12 : 5)}
+                      zoom={userLat && userLng ? 12 : null}
                       height="440px"
                       userLocation={userLat && userLng ? { lat: parseFloat(userLat), lng: parseFloat(userLng), label: 'Your Location' } : null}
                       onListingClick={openClaimModal}
@@ -740,7 +736,7 @@ export const SeekerDashboard = () => {
               <MapView
                 listings={listings}
                 center={mapCenter}
-                zoom={userLat && userLng ? 12 : (geoListings.length > 0 ? 12 : 5)}
+                zoom={userLat && userLng ? 12 : null}
                 height="520px"
                 userLocation={userLat && userLng ? { lat: parseFloat(userLat), lng: parseFloat(userLng), label: 'Your Location' } : null}
                 onListingClick={openClaimModal}
