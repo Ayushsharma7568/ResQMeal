@@ -27,6 +27,7 @@ export const ProviderDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ message: '', type: 'success' });
   const [listingStatusTab, setListingStatusTab] = useState('active');
+  const [claimStatusTab, setClaimStatusTab] = useState('pending');
 
   // Modal states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -336,6 +337,32 @@ export const ProviderDashboard = () => {
     return true;
   });
 
+  const claimStatusCounts = {
+    pending: incomingClaims.filter(c => c.status === 'PENDING').length,
+    approved: incomingClaims.filter(c => ['APPROVED', 'ACCEPTED', 'IN_TRANSIT', 'PICKED_UP'].includes(c.status)).length,
+    completed: incomingClaims.filter(c => ['COMPLETED', 'DELIVERED'].includes(c.status)).length,
+    cancelled: incomingClaims.filter(c => ['CANCELLED', 'REJECTED'].includes(c.status)).length,
+    all: incomingClaims.length
+  };
+
+  const claimFilterTabs = [
+    { id: 'pending', label: 'Pending / Needs Action', count: claimStatusCounts.pending },
+    { id: 'approved', label: 'Approved / In Transit', count: claimStatusCounts.approved },
+    { id: 'completed', label: 'Completed', count: claimStatusCounts.completed },
+    { id: 'cancelled', label: 'Cancelled', count: claimStatusCounts.cancelled },
+    { id: 'all', label: 'All', count: claimStatusCounts.all }
+  ];
+
+  const filteredIncomingClaims = incomingClaims.filter(claim => {
+    if (claimStatusTab === 'pending') return claim.status === 'PENDING';
+    if (claimStatusTab === 'approved') {
+      return ['APPROVED', 'ACCEPTED', 'IN_TRANSIT', 'PICKED_UP'].includes(claim.status);
+    }
+    if (claimStatusTab === 'completed') return ['COMPLETED', 'DELIVERED'].includes(claim.status);
+    if (claimStatusTab === 'cancelled') return ['CANCELLED', 'REJECTED'].includes(claim.status);
+    return true;
+  });
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -480,77 +507,168 @@ export const ProviderDashboard = () => {
         {/* LEFT 60%: Incoming Claims */}
         <div ref={claimsSectionRef}>
           <div className="dash-section-card" style={{ padding: '1.5rem' }}>
-            <div className="dash-section-header">
-              <span className="dash-section-title">Incoming Claims from NGOs</span>
-              <span className="dash-section-count">{incomingClaims.length} Claims</span>
+            <div className="dash-section-header" style={{ marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span className="dash-section-title">Incoming Claims from NGOs</span>
+                <span className="dash-section-count">
+                  {filteredIncomingClaims.length} of {incomingClaims.length} Claims
+                </span>
+              </div>
+            </div>
+
+            {/* Horizontal Claim Filter Tabs */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                overflowX: 'auto',
+                paddingBottom: '0.65rem',
+                marginBottom: '1rem',
+                borderBottom: '1px solid #f1f5f9'
+              }}
+            >
+              {claimFilterTabs.map(tab => {
+                const isActive = claimStatusTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setClaimStatusTab(tab.id)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.38rem 0.75rem',
+                      borderRadius: '20px',
+                      fontSize: '0.78rem',
+                      fontWeight: isActive ? 700 : 500,
+                      background: isActive ? '#0f766e' : '#f8fafc',
+                      color: isActive ? '#ffffff' : '#64748b',
+                      border: `1px solid ${isActive ? '#0f766e' : '#e2e8f0'}`,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.18s ease'
+                    }}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      style={{
+                        padding: '0.1rem 0.42rem',
+                        borderRadius: '10px',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        background: isActive ? 'rgba(255, 255, 255, 0.25)' : '#e2e8f0',
+                        color: isActive ? '#ffffff' : '#475569'
+                      }}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             {loading ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {[1, 2].map(i => <Skeleton key={i} height="130px" />)}
               </div>
-            ) : incomingClaims.length > 0 ? (
+            ) : filteredIncomingClaims.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {incomingClaims.map((claim) => (
-                  <motion.div
-                    key={claim._id}
-                    initial={{ opacity: 0, x: -12 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                    className="hover-lift"
-                    style={{
-                      padding: '1.25rem',
-                      borderRadius: '14px',
-                      background: claim.status === 'PENDING'
-                        ? 'linear-gradient(135deg, #fffbeb 0%, #fef9ec 100%)'
-                        : '#f8fafc',
-                      border: claim.status === 'PENDING' ? '1px solid rgba(253, 230, 138, 0.7)' : '1px solid #e2e8f0',
-                      borderLeft: claim.status === 'PENDING' ? '4px solid #d97706' : '4px solid #e2e8f0'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                      <div>
-                        <h4 style={{ fontSize: '0.98rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                          {claim.foodListingId?.title || 'Food Listing'}
-                        </h4>
-                        <span style={{ fontSize: '0.82rem', color: '#0f766e', fontWeight: 700 }}>
-                          By {claim.seekerId?.name || 'NGO Seeker'}
-                        </span>
+                {filteredIncomingClaims.map((claim) => {
+                  const isPending = claim.status === 'PENDING';
+                  const isCancelled = ['CANCELLED', 'REJECTED'].includes(claim.status);
+                  const isCompleted = ['COMPLETED', 'DELIVERED'].includes(claim.status);
+
+                  return (
+                    <motion.div
+                      key={claim._id}
+                      initial={{ opacity: 0, x: -12 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                      className="hover-lift"
+                      style={{
+                        padding: '1.25rem',
+                        borderRadius: '14px',
+                        background: isPending
+                          ? 'linear-gradient(135deg, #fffbeb 0%, #fef9ec 100%)'
+                          : isCancelled
+                          ? '#fafafa'
+                          : '#f8fafc',
+                        border: isPending
+                          ? '1px solid rgba(253, 230, 138, 0.7)'
+                          : isCancelled
+                          ? '1px dashed #cbd5e1'
+                          : '1px solid #e2e8f0',
+                        borderLeft: isPending
+                          ? '4px solid #d97706'
+                          : isCancelled
+                          ? '4px solid #94a3b8'
+                          : isCompleted
+                          ? '4px solid #059669'
+                          : '4px solid #0f766e',
+                        opacity: isCancelled ? 0.75 : 1
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                        <div>
+                          <h4 style={{ fontSize: '0.98rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                            {claim.foodListingId?.title || 'Food Listing'}
+                          </h4>
+                          <span style={{ fontSize: '0.82rem', color: '#0f766e', fontWeight: 700 }}>
+                            By {claim.seekerId?.name || 'NGO Seeker'}
+                          </span>
+                        </div>
+                        <Badge status={claim.status} />
                       </div>
-                      <Badge status={claim.status} />
-                    </div>
 
-                    {claim.notes && (
-                      <p style={{ fontSize: '0.82rem', color: '#475569', background: 'rgba(255,255,255,0.7)', padding: '0.5rem 0.75rem', borderRadius: '8px', margin: '0.5rem 0', fontStyle: 'italic' }}>
-                        "{claim.notes}"
-                      </p>
-                    )}
+                      {claim.notes && (
+                        <p style={{ fontSize: '0.82rem', color: '#475569', background: 'rgba(255,255,255,0.7)', padding: '0.5rem 0.75rem', borderRadius: '8px', margin: '0.5rem 0', fontStyle: 'italic' }}>
+                          "{claim.notes}"
+                        </p>
+                      )}
 
-                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <Clock size={12} />
-                      Requested: {formatDisplayDate(claim.createdAt)}
-                    </div>
-
-                    {claim.status === 'PENDING' && (
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button className="btn btn-primary btn-sm hover-pop" onClick={() => handleApproveClaim(claim._id)} style={{ flex: 1 }}>
-                          <Check size={15} /> Approve
-                        </button>
-                        <button className="btn btn-secondary btn-sm hover-pop" onClick={() => handleRejectClaim(claim._id)} style={{ color: '#dc2626' }}>
-                          <X size={15} /> Reject
-                        </button>
+                      <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: isPending ? '0.85rem' : '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Clock size={12} />
+                        Requested: {formatDisplayDate(claim.createdAt)}
                       </div>
-                    )}
-                  </motion.div>
-                ))}
+
+                      {isPending && (
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button className="btn btn-primary btn-sm hover-pop" onClick={() => handleApproveClaim(claim._id)} style={{ flex: 1 }}>
+                            <Check size={15} /> Approve
+                          </button>
+                          <button className="btn btn-secondary btn-sm hover-pop" onClick={() => handleRejectClaim(claim._id)} style={{ color: '#dc2626' }}>
+                            <X size={15} /> Reject
+                          </button>
+                        </div>
+                      )}
+                    </motion.div>
+                  );
+                })}
               </div>
             ) : (
-              <div className="dash-empty-state">
+              <div className="dash-empty-state" style={{ padding: '2rem 1rem' }}>
                 <div className="dash-empty-state-icon">
-                  <Package size={28} color="#0f766e" />
+                  {claimStatusTab === 'pending' && <CheckCircle2 size={28} color="#059669" />}
+                  {claimStatusTab === 'approved' && <Clock size={28} color="#0f766e" />}
+                  {claimStatusTab === 'completed' && <Package size={28} color="#0f766e" />}
+                  {claimStatusTab === 'cancelled' && <XCircle size={28} color="#64748b" />}
+                  {claimStatusTab === 'all' && <Package size={28} color="#0f766e" />}
                 </div>
-                <p style={{ fontWeight: 700, color: '#0f172a', marginBottom: '0.3rem' }}>No incoming claims yet</p>
-                <p style={{ fontSize: '0.85rem', color: '#64748b' }}>Claims from NGOs will appear here once you list surplus food.</p>
+                <p style={{ fontWeight: 700, color: '#0f172a', marginBottom: '0.3rem' }}>
+                  {claimStatusTab === 'pending' && 'No pending claims needing review'}
+                  {claimStatusTab === 'approved' && 'No claims currently approved or in transit'}
+                  {claimStatusTab === 'completed' && 'No completed claims yet'}
+                  {claimStatusTab === 'cancelled' && 'No cancelled or rejected claims'}
+                  {claimStatusTab === 'all' && 'No incoming claims yet'}
+                </p>
+                <p style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                  {claimStatusTab === 'pending' && 'All incoming claims have been processed. Great job!'}
+                  {claimStatusTab === 'approved' && 'Approved claims awaiting volunteer pickup or delivery will show up here.'}
+                  {claimStatusTab === 'completed' && 'Claims successfully received by NGOs will be safely archived here.'}
+                  {claimStatusTab === 'cancelled' && 'Any claims that were rejected or cancelled will appear here.'}
+                  {claimStatusTab === 'all' && 'Claims from NGOs will appear here once you list surplus food.'}
+                </p>
               </div>
             )}
           </div>
