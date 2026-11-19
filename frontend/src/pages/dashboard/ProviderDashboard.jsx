@@ -17,7 +17,7 @@ import { motion } from 'framer-motion';
 import {
   PlusCircle, Package, CheckCircle2, Clock, MapPin,
   Trash2, Edit3, Check, X, AlertCircle, Eye, Tag, Utensils, Sparkles,
-  TrendingUp, Activity, ArrowRight, Zap, Gift
+  TrendingUp, Activity, ArrowRight, Zap, Gift, XCircle
 } from 'lucide-react';
 
 export const ProviderDashboard = () => {
@@ -26,6 +26,7 @@ export const ProviderDashboard = () => {
   const [incomingClaims, setIncomingClaims] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ message: '', type: 'success' });
+  const [listingStatusTab, setListingStatusTab] = useState('active');
 
   // Modal states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -309,6 +310,32 @@ export const ProviderDashboard = () => {
   const completedListingsCount = myListings.filter(l => l.status === 'COMPLETED').length;
   const totalListingsCount = myListings.length;
 
+  const statusCounts = {
+    active: myListings.filter(l => l.status === 'AVAILABLE').length,
+    in_progress: myListings.filter(l => ['CLAIMED', 'CONFIRMED', 'APPROVED', 'PICKUP_ASSIGNED', 'PICKED_UP', 'IN_TRANSIT'].includes(l.status)).length,
+    completed: myListings.filter(l => ['COMPLETED', 'DELIVERED'].includes(l.status)).length,
+    cancelled: myListings.filter(l => ['CANCELLED', 'EXPIRED'].includes(l.status)).length,
+    all: myListings.length
+  };
+
+  const filterTabs = [
+    { id: 'active', label: 'Active / Available', count: statusCounts.active },
+    { id: 'in_progress', label: 'In Progress', count: statusCounts.in_progress },
+    { id: 'completed', label: 'Completed', count: statusCounts.completed },
+    { id: 'cancelled', label: 'Cancelled', count: statusCounts.cancelled },
+    { id: 'all', label: 'All', count: statusCounts.all }
+  ];
+
+  const filteredMyListings = myListings.filter(listing => {
+    if (listingStatusTab === 'active') return listing.status === 'AVAILABLE';
+    if (listingStatusTab === 'in_progress') {
+      return ['CLAIMED', 'CONFIRMED', 'APPROVED', 'PICKUP_ASSIGNED', 'PICKED_UP', 'IN_TRANSIT'].includes(listing.status);
+    }
+    if (listingStatusTab === 'completed') return ['COMPLETED', 'DELIVERED'].includes(listing.status);
+    if (listingStatusTab === 'cancelled') return ['CANCELLED', 'EXPIRED'].includes(listing.status);
+    return true;
+  });
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -532,133 +559,237 @@ export const ProviderDashboard = () => {
         {/* RIGHT 40%: My Surplus Listings */}
         <div ref={listingsSectionRef}>
           <div className="dash-section-card" style={{ padding: '1.5rem' }}>
-            <div className="dash-section-header">
-              <span className="dash-section-title">My Surplus Listings</span>
-              <span className="dash-section-count">{myListings.length} Total</span>
+            <div className="dash-section-header" style={{ marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span className="dash-section-title">My Surplus Listings</span>
+                <span className="dash-section-count">
+                  {filteredMyListings.length} of {myListings.length} Total
+                </span>
+              </div>
+            </div>
+
+            {/* Horizontal Filter Tabs */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                overflowX: 'auto',
+                paddingBottom: '0.65rem',
+                marginBottom: '1rem',
+                borderBottom: '1px solid #f1f5f9'
+              }}
+            >
+              {filterTabs.map(tab => {
+                const isActive = listingStatusTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setListingStatusTab(tab.id)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.38rem 0.75rem',
+                      borderRadius: '20px',
+                      fontSize: '0.78rem',
+                      fontWeight: isActive ? 700 : 500,
+                      background: isActive ? '#0f766e' : '#f8fafc',
+                      color: isActive ? '#ffffff' : '#64748b',
+                      border: `1px solid ${isActive ? '#0f766e' : '#e2e8f0'}`,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.18s ease'
+                    }}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      style={{
+                        padding: '0.1rem 0.42rem',
+                        borderRadius: '10px',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        background: isActive ? 'rgba(255, 255, 255, 0.25)' : '#e2e8f0',
+                        color: isActive ? '#ffffff' : '#475569'
+                      }}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             {loading ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {[1, 2].map(i => <Skeleton key={i} height="200px" />)}
               </div>
-            ) : myListings.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-                {myListings.map((listing, idx) => (
-                  <motion.div
-                    key={listing._id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: idx * 0.06 }}
-                    className="dash-food-card"
-                  >
-                    {/* Food Image */}
-                    <div className="dash-food-card-img-wrap">
-                      <img
-                        src={getFoodImage(idx, listing.photoUrl)}
-                        alt={listing.title}
-                        loading="lazy"
-                        onError={e => { e.target.src = getFoodImage(idx + 1); }}
-                      />
-                      <div className="dash-food-card-img-overlay" />
-                      <div className="dash-food-card-img-badge">
-                        <Badge status={listing.status} />
-                      </div>
-                      <div
-                        className="dash-food-card-img-price"
-                        style={{
-                          background: listing.priceType === 'FREE' ? 'rgba(5, 150, 105, 0.85)' : 'rgba(180, 83, 9, 0.85)',
-                          color: '#ffffff'
-                        }}
-                      >
-                        {listing.priceType === 'FREE' ? '🟢 FREE' : `₹${listing.price}`}
-                      </div>
-                    </div>
+            ) : filteredMyListings.length > 0 ? (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: '1.1rem'
+                }}
+              >
+                {filteredMyListings.map((listing, idx) => {
+                  const isCancelled = ['CANCELLED', 'EXPIRED'].includes(listing.status);
+                  const isCompleted = ['COMPLETED', 'DELIVERED'].includes(listing.status);
 
-                    {/* Card Body */}
-                    <div className="dash-food-card-body">
-                      {/* Active Dispatch Queue Indicator */}
-                      {(listing.isCriticalRescue || (listing.escalationTier && listing.escalationTier >= 2) || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000)) && (
-                        <div
+                  return (
+                    <motion.div
+                      key={listing._id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: idx * 0.05 }}
+                      className="dash-food-card"
+                      style={{
+                        opacity: isCancelled ? 0.72 : 1,
+                        border: isCancelled ? '1px dashed #cbd5e1' : undefined,
+                        background: isCancelled ? '#fafafa' : undefined,
+                        display: 'flex',
+                        flexDirection: 'column'
+                      }}
+                    >
+                      {/* Food Image */}
+                      <div className="dash-food-card-img-wrap" style={{ height: isCompleted || isCancelled ? '135px' : '160px' }}>
+                        <img
+                          src={getFoodImage(idx, listing.photoUrl)}
+                          alt={listing.title}
+                          loading="lazy"
+                          onError={e => { e.target.src = getFoodImage(idx + 1); }}
                           style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            padding: '0.25rem 0.6rem',
-                            borderRadius: '6px',
-                            fontSize: '0.73rem',
-                            fontWeight: 800,
-                            background: (listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000)) ? '#fee2e2' : '#fef3c7',
-                            color: (listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000)) ? '#b91c1c' : '#92400e',
-                            border: `1px solid ${(listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000)) ? '#fca5a5' : '#fde68a'}`,
-                            marginBottom: '0.45rem'
+                            filter: isCancelled ? 'grayscale(85%)' : isCompleted ? 'grayscale(35%)' : 'none'
+                          }}
+                        />
+                        <div className="dash-food-card-img-overlay" />
+                        <div className="dash-food-card-img-badge">
+                          <Badge status={listing.status} />
+                        </div>
+                        <div
+                          className="dash-food-card-img-price"
+                          style={{
+                            background: listing.priceType === 'FREE' ? 'rgba(5, 150, 105, 0.85)' : 'rgba(180, 83, 9, 0.85)',
+                            color: '#ffffff'
                           }}
                         >
-                          <span
-                            style={{
-                              width: '7px',
-                              height: '7px',
-                              borderRadius: '50%',
-                              background: (listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000)) ? '#ef4444' : '#f59e0b',
-                              display: 'inline-block'
-                            }}
-                          />
-                          <span>
-                            Active Dispatch Queue: {(listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000))
-                              ? `Tier 3 — Critical Rescue (${listing.currentRadiusKm || 20}km)`
-                              : `Tier ${listing.escalationTier || 2} — Escalated (${listing.currentRadiusKm || 10}km)`}
-                          </span>
-                        </div>
-                      )}
-
-                      <h4 style={{ fontSize: '0.97rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.35rem', lineHeight: 1.3 }}>
-                        {listing.title}
-                      </h4>
-
-                      {listing.description && (
-                        <p style={{
-                          fontSize: '0.8rem', color: '#64748b', marginBottom: '0.6rem', lineHeight: 1.4,
-                          overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'
-                        }}>
-                          {listing.description}
-                        </p>
-                      )}
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', color: '#475569', marginBottom: '0.85rem', backgroundColor: '#f8fafc', padding: '0.6rem 0.75rem', borderRadius: '9px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <Clock size={13} color="#0f766e" />
-                          <span>Deadline: {formatDisplayDate(listing.pickupDeadline)}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <MapPin size={13} color="#0f766e" />
-                          <span>{listing.pickupAddress}{listing.pickupCity ? ` (${listing.pickupCity})` : ''}</span>
+                          {listing.priceType === 'FREE' ? '🟢 FREE' : `₹${listing.price}`}
                         </div>
                       </div>
 
-                      {listing.status === 'AVAILABLE' && (
-                        <button
-                          className="btn btn-secondary btn-sm hover-pop"
-                          onClick={() => handleCancelListing(listing._id)}
-                          style={{ color: '#dc2626', width: '100%', fontSize: '0.82rem' }}
-                        >
-                          <Trash2 size={14} /> Cancel Listing
-                        </button>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
+                      {/* Card Body */}
+                      <div className="dash-food-card-body" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        {/* Active Dispatch Queue Indicator */}
+                        {!isCancelled && !isCompleted && (listing.isCriticalRescue || (listing.escalationTier && listing.escalationTier >= 2) || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000)) && (
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0.25rem 0.6rem',
+                              borderRadius: '6px',
+                              fontSize: '0.73rem',
+                              fontWeight: 800,
+                              background: (listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000)) ? '#fee2e2' : '#fef3c7',
+                              color: (listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000)) ? '#b91c1c' : '#92400e',
+                              border: `1px solid ${(listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000)) ? '#fca5a5' : '#fde68a'}`,
+                              marginBottom: '0.45rem'
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: '7px',
+                                height: '7px',
+                                borderRadius: '50%',
+                                background: (listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000)) ? '#ef4444' : '#f59e0b',
+                                display: 'inline-block'
+                              }}
+                            />
+                            <span>
+                              Active Dispatch Queue: {(listing.isCriticalRescue || (listing.pickupDeadline && new Date(listing.pickupDeadline).getTime() - Date.now() <= 75 * 60 * 1000))
+                                ? `Tier 3 — Critical Rescue (${listing.currentRadiusKm || 20}km)`
+                                : `Tier ${listing.escalationTier || 2} — Escalated (${listing.currentRadiusKm || 10}km)`}
+                            </span>
+                          </div>
+                        )}
+
+                        <h4 style={{ fontSize: '0.97rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.35rem', lineHeight: 1.3 }}>
+                          {listing.title}
+                        </h4>
+
+                        {listing.description && (
+                          <p style={{
+                            fontSize: '0.8rem', color: '#64748b', marginBottom: '0.6rem', lineHeight: 1.4,
+                            overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'
+                          }}>
+                            {listing.description}
+                          </p>
+                        )}
+
+                        <div style={{
+                          marginTop: 'auto',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.3rem',
+                          fontSize: '0.78rem',
+                          color: '#475569',
+                          marginBottom: listing.status === 'AVAILABLE' ? '0.85rem' : 0,
+                          backgroundColor: '#f8fafc',
+                          padding: '0.6rem 0.75rem',
+                          borderRadius: '9px'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Clock size={13} color="#0f766e" />
+                            <span>Deadline: {formatDisplayDate(listing.pickupDeadline)}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <MapPin size={13} color="#0f766e" />
+                            <span>{listing.pickupAddress}{listing.pickupCity ? ` (${listing.pickupCity})` : ''}</span>
+                          </div>
+                        </div>
+
+                        {listing.status === 'AVAILABLE' && (
+                          <button
+                            className="btn btn-secondary btn-sm hover-pop"
+                            onClick={() => handleCancelListing(listing._id)}
+                            style={{ color: '#dc2626', width: '100%', fontSize: '0.82rem' }}
+                          >
+                            <Trash2 size={14} /> Cancel Listing
+                          </button>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
             ) : (
-              <div className="dash-empty-state">
+              <div className="dash-empty-state" style={{ padding: '2rem 1rem' }}>
                 <div className="dash-empty-state-icon">
-                  <PlusCircle size={28} color="#0f766e" />
+                  {listingStatusTab === 'active' && <PlusCircle size={28} color="#0f766e" />}
+                  {listingStatusTab === 'in_progress' && <Clock size={28} color="#d97706" />}
+                  {listingStatusTab === 'completed' && <CheckCircle2 size={28} color="#059669" />}
+                  {listingStatusTab === 'cancelled' && <XCircle size={28} color="#64748b" />}
+                  {listingStatusTab === 'all' && <Package size={28} color="#0f766e" />}
                 </div>
-                <p style={{ fontWeight: 700, color: '#0f172a', marginBottom: '0.3rem' }}>No surplus listed yet</p>
-                <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1rem' }}>
-                  Your next rescued meal starts here.
+                <p style={{ fontWeight: 700, color: '#0f172a', marginBottom: '0.3rem' }}>
+                  {listingStatusTab === 'active' && 'No active surplus listings'}
+                  {listingStatusTab === 'in_progress' && 'No listings currently in progress'}
+                  {listingStatusTab === 'completed' && 'No completed listings yet'}
+                  {listingStatusTab === 'cancelled' && 'No cancelled or expired listings'}
+                  {listingStatusTab === 'all' && 'No surplus listed yet'}
                 </p>
-                <button className="btn btn-primary btn-sm hover-pop" onClick={() => setIsCreateOpen(true)}>
-                  List Your First Item
-                </button>
+                <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1rem' }}>
+                  {listingStatusTab === 'active' && 'All your surplus items have been claimed or completed. Ready to share more?'}
+                  {listingStatusTab === 'in_progress' && 'When seekers claim an item and pickup is underway, it will appear here.'}
+                  {listingStatusTab === 'completed' && 'Successfully delivered surplus meals will be archived here.'}
+                  {listingStatusTab === 'cancelled' && 'Any surplus items you cancel or that expire will be listed here.'}
+                  {listingStatusTab === 'all' && 'Your next rescued meal starts here.'}
+                </p>
+                {listingStatusTab === 'active' && (
+                  <button className="btn btn-primary btn-sm hover-pop" onClick={() => setIsCreateOpen(true)}>
+                    List Surplus Food
+                  </button>
+                )}
               </div>
             )}
           </div>
