@@ -12,7 +12,7 @@ import { formatDisplayDate } from '../../utils/dateUtils';
 import { motion } from 'framer-motion';
 import {
   Truck, MapPin, Clock, CheckCircle2, User, Building,
-  ArrowRight, PackageCheck, AlertCircle, Phone, Navigation, Filter, Map as MapIcon, List, Package
+  ArrowRight, PackageCheck, AlertCircle, Phone, Navigation, Filter, Map as MapIcon, List, Package, Check, XCircle
 } from 'lucide-react';
 
 // Helper to reliably check if a delivery has no volunteer assigned
@@ -43,6 +43,7 @@ export const VolunteerDashboard = () => {
 
   const [availableTasks, setAvailableTasks] = useState([]);
   const [myTasks, setMyTasks] = useState([]);
+  const [deliveryStatusTab, setDeliveryStatusTab] = useState('active');
   const [recentBroadcastListings, setRecentBroadcastListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ message: '', type: 'success' });
@@ -347,6 +348,24 @@ export const VolunteerDashboard = () => {
 
   const activeDeliveries = myTasks.filter(t => t.status !== 'COMPLETED');
   const completedDeliveries = myTasks.filter(t => t.status === 'COMPLETED');
+
+  const deliveryStatusCounts = {
+    active: activeDeliveries.length,
+    completed: completedDeliveries.length,
+    all: myTasks.length
+  };
+
+  const deliveryFilterTabs = [
+    { id: 'active', label: 'Active / In Progress', count: deliveryStatusCounts.active },
+    { id: 'completed', label: 'Completed', count: deliveryStatusCounts.completed },
+    { id: 'all', label: 'All', count: deliveryStatusCounts.all }
+  ];
+
+  const filteredMyTasks = myTasks.filter(task => {
+    if (deliveryStatusTab === 'active') return task.status !== 'COMPLETED';
+    if (deliveryStatusTab === 'completed') return task.status === 'COMPLETED';
+    return true;
+  });
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -942,139 +961,248 @@ export const VolunteerDashboard = () => {
               </button>
             </div>
           )}
-          {myTasks.length > 0 ? (
-            myTasks.map((task) => (
-              <div key={task._id} className="dash-section-card hover-lift" style={{ padding: '1.75rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                  <div>
-                    <Badge status={task.status} />
-                    <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#0f172a', marginTop: '0.35rem' }}>
-                      {task.foodListingId?.title || 'Assigned Food Transfer'}
-                    </h3>
-                  </div>
-                </div>
 
-                {/* Status Timeline */}
-                <div style={{ margin: '1rem 0', backgroundColor: '#fdfbf7', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f766e', marginBottom: '0.5rem' }}>
-                    Delivery Workflow: {task.status}
-                  </div>
-                  <StatusTimeline currentStatus={task.status} delivery={task} />
-                </div>
-
-                {/* Location Details */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', margin: '1rem 0' }}>
-                  <div style={{ padding: '1rem', backgroundColor: '#f0fdfa', borderRadius: '10px', border: '1px solid #ccfbf1' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0f766e', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
-                      📍 Pickup Location
-                    </div>
-                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0f172a' }}>{task.providerId?.name}</div>
-                    <div style={{ fontSize: '0.82rem', color: '#64748b' }}>{task.pickupAddress}</div>
-                    {task.providerId?.phone && (
-                      <div style={{ fontSize: '0.8rem', color: '#0f766e', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <Phone size={13} /> {task.providerId.phone}
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ padding: '1rem', backgroundColor: '#f0fdf4', borderRadius: '10px', border: '1px solid #d1fae5' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
-                      🏠 Delivery Destination
-                    </div>
-                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0f172a' }}>{task.seekerId?.name}</div>
-                    <div style={{ fontSize: '0.82rem', color: '#64748b' }}>{task.deliveryAddress}</div>
-                    {task.seekerId?.phone && (
-                      <div style={{ fontSize: '0.8rem', color: '#059669', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <Phone size={13} /> {task.seekerId.phone}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Map snippet for active delivery */}
-                {extractCoordinates(task.foodListingId) && (
-                  <div style={{ margin: '1rem 0', borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
-                    <div style={{ padding: '0.5rem 1rem', background: '#f1f5f9', fontSize: '0.78rem', fontWeight: 700, color: '#475569' }}>
-                      🗺️ Route Map Preview
-                    </div>
-                    <MapView
-                      listings={[{
-                        _id: task._id,
-                        title: `Pickup: ${task.foodListingId.title}`,
-                        providerName: task.providerId?.name,
-                        pickupAddress: task.pickupAddress || task.foodListingId?.pickupAddress,
-                        pickupCity: task.foodListingId?.pickupCity,
-                        pickupLat: task.foodListingId.pickupLat,
-                        pickupLng: task.foodListingId.pickupLng,
-                        latitude: task.foodListingId.latitude,
-                        longitude: task.foodListingId.longitude,
-                        location: task.foodListingId.location
-                      }]}
-                      height="220px"
-                    />
-                  </div>
-                )}
-
-                {/* Workflow Actions */}
-                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                  {isDeliveryUnassigned(task) && (
-                    <button
-                      className="btn btn-primary hover-pop btn-shimmer"
-                      onClick={() => handleAcceptTask(task._id)}
-                      disabled={actionLoading}
+          {/* Delivery Status Filter Bar */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem',
+              flexWrap: 'wrap',
+              background: '#ffffff',
+              padding: '0.85rem 1.25rem',
+              borderRadius: '14px',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflowX: 'auto' }}>
+              {deliveryFilterTabs.map(tab => {
+                const isActive = deliveryStatusTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setDeliveryStatusTab(tab.id)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.42rem 0.85rem',
+                      borderRadius: '20px',
+                      fontSize: '0.82rem',
+                      fontWeight: isActive ? 700 : 500,
+                      background: isActive ? '#0f766e' : '#f8fafc',
+                      color: isActive ? '#ffffff' : '#64748b',
+                      border: `1px solid ${isActive ? '#0f766e' : '#e2e8f0'}`,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.18s ease'
+                    }}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      style={{
+                        padding: '0.12rem 0.48rem',
+                        borderRadius: '10px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        background: isActive ? 'rgba(255, 255, 255, 0.25)' : '#e2e8f0',
+                        color: isActive ? '#ffffff' : '#475569'
+                      }}
                     >
-                      <Truck size={16} /> ✋ Accept Pickup — Assign to Me
-                    </button>
-                  )}
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 600 }}>
+              Showing {filteredMyTasks.length} of {myTasks.length} Deliveries
+            </div>
+          </div>
 
-                  {task.status === 'ASSIGNED' && (
-                    <button className="btn btn-primary hover-pop btn-shimmer" onClick={() => handleMarkPickedUp(task._id)} disabled={actionLoading}>
-                      <Truck size={16} /> Mark Food as Picked Up (In Transit)
-                    </button>
-                  )}
+          {filteredMyTasks.length > 0 ? (
+            filteredMyTasks.map((task) => {
+              const isCompleted = task.status === 'COMPLETED';
 
-                  {['PICKED_UP', 'IN_TRANSIT'].includes(task.status) && (
-                    <>
-                      <span style={{ fontSize: '0.8rem', color: '#0f766e', background: '#ccfbf1', padding: '0.35rem 0.75rem', borderRadius: '8px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <Truck size={14} /> In Transit to Seeker
+              return (
+                <div
+                  key={task._id}
+                  className="dash-section-card hover-lift"
+                  style={{
+                    padding: isCompleted ? '1.25rem 1.5rem' : '1.75rem',
+                    background: isCompleted ? '#fafcfb' : '#ffffff',
+                    border: isCompleted ? '1px solid #d1fae5' : '1px solid #e2e8f0',
+                    borderLeft: isCompleted ? '4px solid #059669' : '4px solid #0f766e',
+                    opacity: isCompleted ? 0.92 : 1
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Badge status={task.status} />
+                        {isCompleted && (
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              padding: '0.2rem 0.55rem',
+                              borderRadius: '6px',
+                              fontSize: '0.73rem',
+                              fontWeight: 700,
+                              background: '#d1fae5',
+                              color: '#065f46'
+                            }}
+                          >
+                            <CheckCircle2 size={13} /> Verified Delivery
+                          </span>
+                        )}
+                      </div>
+                      <h3 style={{ fontSize: isCompleted ? '1.05rem' : '1.2rem', fontWeight: 700, color: '#0f172a', marginTop: '0.4rem', margin: '0.4rem 0 0' }}>
+                        {task.foodListingId?.title || 'Assigned Food Transfer'}
+                      </h3>
+                    </div>
+                    {isCompleted && task.updatedAt && (
+                      <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Clock size={13} color="#059669" /> Completed {formatDisplayDate(task.updatedAt)}
                       </span>
+                    )}
+                  </div>
+
+                  {/* Status Timeline — rendered for active runs or compact for completed */}
+                  <div style={{ margin: '0.85rem 0', backgroundColor: isCompleted ? '#f0fdf4' : '#fdfbf7', padding: '0.85rem 1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: isCompleted ? '#059669' : '#0f766e', marginBottom: '0.45rem' }}>
+                      Delivery Workflow: {task.status}
+                    </div>
+                    <StatusTimeline currentStatus={task.status} delivery={task} />
+                  </div>
+
+                  {/* Location Details */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.85rem', margin: '0.85rem 0' }}>
+                    <div style={{ padding: '0.85rem 1rem', backgroundColor: '#f0fdfa', borderRadius: '10px', border: '1px solid #ccfbf1' }}>
+                      <div style={{ fontSize: '0.73rem', fontWeight: 700, color: '#0f766e', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                        📍 Pickup Location
+                      </div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>{task.providerId?.name}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{task.pickupAddress}</div>
+                      {task.providerId?.phone && !isCompleted && (
+                        <div style={{ fontSize: '0.78rem', color: '#0f766e', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <Phone size={13} /> {task.providerId.phone}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ padding: '0.85rem 1rem', backgroundColor: '#f0fdf4', borderRadius: '10px', border: '1px solid #d1fae5' }}>
+                      <div style={{ fontSize: '0.73rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                        🏠 Delivery Destination
+                      </div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>{task.seekerId?.name}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{task.deliveryAddress}</div>
+                      {task.seekerId?.phone && !isCompleted && (
+                        <div style={{ fontSize: '0.78rem', color: '#059669', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <Phone size={13} /> {task.seekerId.phone}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Route Map Preview — shown only for active runs */}
+                  {!isCompleted && extractCoordinates(task.foodListingId) && (
+                    <div style={{ margin: '1rem 0', borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
+                      <div style={{ padding: '0.5rem 1rem', background: '#f1f5f9', fontSize: '0.78rem', fontWeight: 700, color: '#475569' }}>
+                        🗺️ Route Map Preview
+                      </div>
+                      <MapView
+                        listings={[{
+                          _id: task._id,
+                          title: `Pickup: ${task.foodListingId.title}`,
+                          providerName: task.providerId?.name,
+                          pickupAddress: task.pickupAddress || task.foodListingId?.pickupAddress,
+                          pickupCity: task.foodListingId?.pickupCity,
+                          pickupLat: task.foodListingId.pickupLat,
+                          pickupLng: task.foodListingId.pickupLng,
+                          latitude: task.foodListingId.latitude,
+                          longitude: task.foodListingId.longitude,
+                          location: task.foodListingId.location
+                        }]}
+                        height="220px"
+                      />
+                    </div>
+                  )}
+
+                  {/* Workflow Actions */}
+                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.85rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {isDeliveryUnassigned(task) && (
                       <button
                         className="btn btn-primary hover-pop btn-shimmer"
-                        onClick={() => handleMarkDelivered(task._id)}
+                        onClick={() => handleAcceptTask(task._id)}
                         disabled={actionLoading}
-                        style={{ backgroundColor: '#059669', borderColor: '#059669' }}
                       >
-                        <PackageCheck size={16} /> Mark Food as Delivered
+                        <Truck size={16} /> ✋ Accept Pickup — Assign to Me
                       </button>
-                    </>
-                  )}
+                    )}
 
-                  {task.status === 'DELIVERED' && (
-                    <div style={{ fontSize: '0.9rem', color: '#0f766e', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <CheckCircle2 size={18} /> Delivered! Waiting for food seeker to confirm receipt.
-                    </div>
-                  )}
+                    {task.status === 'ASSIGNED' && (
+                      <button className="btn btn-primary hover-pop btn-shimmer" onClick={() => handleMarkPickedUp(task._id)} disabled={actionLoading}>
+                        <Truck size={16} /> Mark Food as Picked Up (In Transit)
+                      </button>
+                    )}
 
-                  {task.status === 'COMPLETED' && (
-                    <div style={{ fontSize: '0.9rem', color: '#047857', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <CheckCircle2 size={18} /> Transfer Fully Completed & Verified ✅
-                    </div>
-                  )}
+                    {['PICKED_UP', 'IN_TRANSIT'].includes(task.status) && (
+                      <>
+                        <span style={{ fontSize: '0.8rem', color: '#0f766e', background: '#ccfbf1', padding: '0.35rem 0.75rem', borderRadius: '8px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Truck size={14} /> In Transit to Seeker
+                        </span>
+                        <button
+                          className="btn btn-primary hover-pop btn-shimmer"
+                          onClick={() => handleMarkDelivered(task._id)}
+                          disabled={actionLoading}
+                          style={{ backgroundColor: '#059669', borderColor: '#059669' }}
+                        >
+                          <PackageCheck size={16} /> Mark Food as Delivered
+                        </button>
+                      </>
+                    )}
+
+                    {task.status === 'DELIVERED' && (
+                      <div style={{ fontSize: '0.88rem', color: '#0f766e', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <CheckCircle2 size={18} /> Delivered! Waiting for food seeker to confirm receipt.
+                      </div>
+                    )}
+
+                    {isCompleted && (
+                      <div style={{ fontSize: '0.88rem', color: '#047857', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <CheckCircle2 size={18} /> Transfer Fully Completed & Verified ✅
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
-            <div className="dash-empty-state">
+            <div className="dash-empty-state" style={{ padding: '2.5rem 1.5rem' }}>
               <div className="dash-empty-state-icon">
-                <Truck size={28} color="#0f766e" />
+                {deliveryStatusTab === 'active' && <Truck size={28} color="#0f766e" />}
+                {deliveryStatusTab === 'completed' && <CheckCircle2 size={28} color="#059669" />}
+                {deliveryStatusTab === 'all' && <Package size={28} color="#0f766e" />}
               </div>
-              <p style={{ fontWeight: 700, color: '#0f172a', marginBottom: '0.3rem' }}>No active deliveries</p>
-              <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1rem' }}>
-                Accept an available pickup to get started!
+              <p style={{ fontWeight: 700, color: '#0f172a', marginBottom: '0.3rem' }}>
+                {deliveryStatusTab === 'active' && 'No active delivery runs in progress'}
+                {deliveryStatusTab === 'completed' && 'No completed deliveries yet'}
+                {deliveryStatusTab === 'all' && 'No assigned deliveries yet'}
               </p>
-              <button className="btn btn-primary btn-sm hover-pop" onClick={() => setActiveTab('available')}>
-                Browse Available Pickups →
-              </button>
+              <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1rem' }}>
+                {deliveryStatusTab === 'active' && 'You currently have no food pickups in transit. Ready to help out?'}
+                {deliveryStatusTab === 'completed' && 'Completed rescues with confirmed receipts will be archived here.'}
+                {deliveryStatusTab === 'all' && 'Accept an available pickup from the nearby list to get started!'}
+              </p>
+              {deliveryStatusTab === 'active' && (
+                <button className="btn btn-primary btn-sm hover-pop" onClick={() => setActiveTab('available')}>
+                  Browse Available Pickups →
+                </button>
+              )}
             </div>
           )}
         </div>
