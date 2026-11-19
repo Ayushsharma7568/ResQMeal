@@ -194,6 +194,7 @@ export const seedFoodListings = async () => {
       if (existing.pickupDeadline <= new Date()) {
         existing.availableFrom = mock.availableFrom;
         existing.pickupDeadline = mock.pickupDeadline;
+        existing.expiresAt = mock.pickupDeadline;
         existing.status = 'AVAILABLE';
         updated = true;
       }
@@ -210,27 +211,6 @@ export const seedFoodListings = async () => {
 };
 
 export const seedDeliveries = async () => {
-  // Check if at least one unassigned pickup task already exists
-  const existingUnassigned = await Delivery.findOne({
-    $or: [
-      { status: 'UNASSIGNED' },
-      { volunteerId: null }
-    ]
-  });
-
-  if (existingUnassigned) {
-    const count = await Delivery.countDocuments({
-      $or: [
-        { status: 'UNASSIGNED' },
-        { volunteerId: null }
-      ]
-    });
-    console.log(`📦 Deliveries check: ${count} unassigned pickup task(s) already available.`);
-    return 0;
-  }
-
-  console.log('⚠️ No unassigned deliveries found. Seeding default unassigned pickup task for demo volunteer...');
-
   const provider = await User.findOne({ email: 'provider@dontwasteit.demo' });
   const seeker = await User.findOne({ email: 'seeker@dontwasteit.demo' });
 
@@ -247,57 +227,98 @@ export const seedDeliveries = async () => {
     return 0;
   }
 
-  // Find a sample listing
-  let listing = await FoodListing.findOne({ providerId: verifiedProvider._id, status: 'AVAILABLE' });
-  if (!listing) {
-    listing = await FoodListing.findOne({ providerId: verifiedProvider._id });
-  }
+  let seededCount = 0;
 
-  if (!listing) {
-    await seedFoodListings();
-    listing = await FoodListing.findOne({ providerId: verifiedProvider._id });
-  }
-
-  if (!listing) {
-    console.error('❌ Could not find or create a listing for delivery seeding.');
-    return 0;
-  }
-
-  // Find or create an approved claim not already tied to any delivery
-  const existingDeliveries = await Delivery.find({}, 'foodClaimId');
-  const usedClaimIds = existingDeliveries.map(d => d.foodClaimId ? d.foodClaimId.toString() : '');
-
-  let availableClaim = await FoodClaim.findOne({
-    _id: { $nin: usedClaimIds },
-    status: 'APPROVED'
+  // 1. Ensure at least one unassigned delivery task exists for general demo
+  const existingUnassigned = await Delivery.findOne({
+    $or: [
+      { status: 'UNASSIGNED' },
+      { volunteerId: null }
+    ]
   });
 
-  if (!availableClaim) {
-    availableClaim = await FoodClaim.create({
-      foodListingId: listing._id,
-      seekerId: verifiedSeeker._id,
-      providerId: verifiedProvider._id,
-      status: 'APPROVED',
-      requestedPickupTime: new Date(Date.now() + 3 * 3600 * 1000),
-      notes: 'Demo approved claim for volunteer pickup fulfillment'
-    });
-    console.log(`  + Seeded approved claim: "${availableClaim._id}"`);
+  if (!existingUnassigned) {
+    console.log('⚠️ No unassigned deliveries found. Seeding default unassigned pickup task for demo volunteer...');
+    let listing = await FoodListing.findOne({ providerId: verifiedProvider._id, status: 'AVAILABLE' });
+    if (!listing) listing = await FoodListing.findOne({ providerId: verifiedProvider._id });
+    if (!listing) {
+      await seedFoodListings();
+      listing = await FoodListing.findOne({ providerId: verifiedProvider._id });
+    }
+
+    if (listing) {
+      const existingDeliveries = await Delivery.find({}, 'foodClaimId');
+      const usedClaimIds = existingDeliveries.map(d => d.foodClaimId ? d.foodClaimId.toString() : '');
+
+      let availableClaim = await FoodClaim.findOne({
+        _id: { $nin: usedClaimIds },
+        status: 'APPROVED'
+      });
+
+      if (!availableClaim) {
+        availableClaim = await FoodClaim.create({
+          foodListingId: listing._id,
+          seekerId: verifiedSeeker._id,
+          providerId: verifiedProvider._id,
+          status: 'APPROVED',
+          requestedPickupTime: new Date(Date.now() + 3 * 3600 * 1000),
+          notes: 'Demo approved claim for volunteer pickup fulfillment'
+        });
+      }
+
+      await Delivery.create({
+        foodClaimId: availableClaim._id,
+        foodListingId: availableClaim.foodListingId || listing._id,
+        providerId: verifiedProvider._id,
+        seekerId: verifiedSeeker._id,
+        volunteerId: null,
+        status: 'UNASSIGNED',
+        pickupAddress: listing.pickupAddress || '80 Feet Road, 4th Block, Koramangala',
+        deliveryAddress: '12th Main Road, HAL 2nd Stage, Indiranagar, Bangalore',
+        notes: 'Surplus meal packets ready for community distribution. Handle with care.'
+      });
+      seededCount++;
+    }
   }
 
-  const seededDelivery = await Delivery.create({
-    foodClaimId: availableClaim._id,
-    foodListingId: availableClaim.foodListingId || listing._id,
-    providerId: verifiedProvider._id,
-    seekerId: verifiedSeeker._id,
-    volunteerId: null,
-    status: 'UNASSIGNED',
-    pickupAddress: listing.pickupAddress || '80 Feet Road, 4th Block, Koramangala',
-    deliveryAddress: '12th Main Road, HAL 2nd Stage, Indiranagar, Bangalore',
-    notes: 'Surplus meal packets ready for community distribution. Handle with care.'
+  // 2. Ensure Sonipat campus listing has a delivery task so it reflects on Volunteer Dashboard & Map too
+  const sonipatListing = await FoodListing.findOne({
+    $or: [
+      { title: /SRM University Sonipat/i },
+      { pickupAddress: /SRM/i }
+    ],
+    status: 'AVAILABLE'
   });
+  if (sonipatListing) {
+    const existingSonipatDelivery = await Delivery.findOne({ foodListingId: sonipatListing._id });
+    if (!existingSonipatDelivery) {
+      const claim = await FoodClaim.create({
+        foodListingId: sonipatListing._id,
+        seekerId: verifiedSeeker._id,
+        providerId: verifiedProvider._id,
+        status: 'APPROVED',
+        requestedPickupTime: new Date(Date.now() + 4 * 3600 * 1000),
+        notes: 'Campus food surplus claim for Sonipat community distribution'
+      });
+      await Delivery.create({
+        foodClaimId: claim._id,
+        foodListingId: sonipatListing._id,
+        providerId: verifiedProvider._id,
+        seekerId: verifiedSeeker._id,
+        volunteerId: null,
+        status: 'UNASSIGNED',
+        pickupAddress: sonipatListing.pickupAddress,
+        deliveryAddress: 'Sonipat Community Center, Rai, Haryana',
+        currentRadiusKm: 20,
+        escalationTier: sonipatListing.escalationTier || 1,
+        notes: 'Pick up from SRM University Sonipat Central Dining Hall.'
+      });
+      console.log('🌱 Seeded unassigned delivery task for SRM University Sonipat.');
+      seededCount++;
+    }
+  }
 
-  console.log(`🌱 Unassigned delivery task seeded: ${seededDelivery._id} (${listing.title})`);
-  return 1;
+  return seededCount;
 };
 
 export const cleanupOrphanedDeliveries = async () => {

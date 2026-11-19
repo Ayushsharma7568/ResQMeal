@@ -174,10 +174,12 @@ export const getListings = async (req, res) => {
     let listings = [];
 
     if (hasCoordinates) {
-      const parsedRadius = radius !== undefined && radius !== ''
-        ? parseFloat(radius)
-        : (maxDistance !== undefined && maxDistance !== '' ? parseFloat(maxDistance) : 25);
-      const radiusKm = Number.isFinite(parsedRadius) && parsedRadius > 0 ? parsedRadius : 25;
+      const isAnyRadius = radius === 'any' || radius === 'all' || maxDistance === 'any' || maxDistance === 'all' || req.query.anyDistance === 'true';
+      const parsedRadius = !isAnyRadius && (
+        (radius !== undefined && radius !== '') ? parseFloat(radius) :
+        (maxDistance !== undefined && maxDistance !== '' ? parseFloat(maxDistance) : null)
+      );
+      const radiusKm = Number.isFinite(parsedRadius) && parsedRadius > 0 ? parsedRadius : null;
 
       try {
         const makeAggPipeline = (maxMeters) => [
@@ -220,12 +222,12 @@ export const getListings = async (req, res) => {
           { $project: { providerInfo: 0, distanceMeters: 0 } }
         ];
 
-        // Query with requested radius first
-        listings = await FoodListing.aggregate(makeAggPipeline(radiusKm * 1000));
+        // Query with requested radius if specified, otherwise query all listings sorted nearest first
+        listings = await FoodListing.aggregate(makeAggPipeline(radiusKm ? radiusKm * 1000 : null));
 
         // Fallback: If 0 listings matched within radius, do NOT strictly drop listings;
         // query all active listings sorted nearest first so listings and Leaflet map pins do not vanish!
-        if (listings.length === 0) {
+        if (listings.length === 0 && radiusKm) {
           listings = await FoodListing.aggregate(makeAggPipeline(null));
         }
       } catch (geoErr) {

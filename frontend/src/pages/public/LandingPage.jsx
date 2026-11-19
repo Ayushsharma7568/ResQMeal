@@ -419,7 +419,7 @@ export const LandingPage = () => {
 
             {/* Right Map — Slide In Right */}
             <ScrollReveal direction="right">
-              <MapView center={[22.5, 79.0]} zoom={5} height="420px" />
+              <MapView listings={recentListings} height="420px" />
             </ScrollReveal>
           </div>
         </div>

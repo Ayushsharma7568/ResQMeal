@@ -37,6 +37,16 @@ const MapPanner = ({ center, zoom, geoListings = [], userLocation = null }) => {
   const map = useMap();
   const lastStateRef = React.useRef({ centerKey: null, boundsKey: null });
 
+  // Invalidate Leaflet map size on mount and whenever listings change to ensure correct rendering inside tabs/containers
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        map.invalidateSize();
+      } catch {}
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [map, geoListings.length]);
+
   useEffect(() => {
     // 1. If user location is explicitly provided, center on user location
     if (userLocation?.lat && userLocation?.lng && !isNaN(userLocation.lat) && !isNaN(userLocation.lng)) {

@@ -182,7 +182,7 @@ export const ProviderDashboard = () => {
     setAiParsing(true);
     try {
       const res = await aiApi.parseListing(aiText);
-      const parsed = res.data;
+      const parsed = res?.data?.data || res?.data || res;
       if (parsed) {
         setFormData(prev => ({
           ...prev,

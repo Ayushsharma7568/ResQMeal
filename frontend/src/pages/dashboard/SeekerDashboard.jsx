@@ -63,7 +63,7 @@ export const SeekerDashboard = () => {
       if (!isNaN(lat) && !isNaN(lng)) {
         params.userLat = lat;
         params.userLng = lng;
-        params.radius = filters.maxDistance || 25;
+        params.radius = filters.maxDistance ? filters.maxDistance : 'any';
         params.sortByDistance = filters.sortByDistance ? 'true' : 'false';
       }
 
@@ -496,6 +496,17 @@ export const SeekerDashboard = () => {
                   <input type="text" className="form-input" style={{ fontSize: '0.85rem' }}
                     placeholder="Bangalore..." value={filters.city}
                     onChange={(e) => setFilters({ ...filters, city: e.target.value })} />
+                </div>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.78rem' }}>Distance Radius</label>
+                  <select className="form-select" style={{ fontSize: '0.85rem' }} value={filters.maxDistance}
+                    onChange={(e) => setFilters({ ...filters, maxDistance: e.target.value })}>
+                    <option value="">All India (Any Distance)</option>
+                    <option value="10">Within 10 km</option>
+                    <option value="25">Within 25 km</option>
+                    <option value="50">Within 50 km</option>
+                    <option value="100">Within 100 km</option>
+                  </select>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <div style={{ display: 'flex', gap: '0.4rem' }}>
