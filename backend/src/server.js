@@ -14,6 +14,7 @@ import analyticsRoutes from './routes/analyticsRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import dispatchRoutes from './routes/dispatchRoutes.js';
 import { startDispatchEngine, stopDispatchEngine } from './services/dispatchEngine.js';
+import { register, metricsMiddleware } from './services/metrics.js';
 
 // Load environment variables
 dotenv.config();
@@ -23,7 +24,7 @@ connectDB();
 
 const app = express();
 
-// Basic request tracking for metrics
+// Basic request tracking for legacy metrics compatibility
 let requestCounter = 0;
 let errorCounter = 0;
 
@@ -34,6 +35,9 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// Prometheus HTTP metrics tracking middleware
+app.use(metricsMiddleware);
 
 // Middleware
 const allowedOrigins = [
@@ -87,11 +91,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Prometheus monitoring metrics endpoint
-app.get('/api/metrics', (req, res) => {
-  const memory = process.memoryUsage();
-  const uptime = process.uptime();
-  const metrics = `
+// Prometheus monitoring metrics endpoints
+const serveMetrics = async (req, res) => {
+  try {
+    const memory = process.memoryUsage();
+    const uptime = process.uptime();
+    const promMetrics = await register.metrics();
+    const legacyMetrics = `
 # HELP dontwasteit_requests_total Total HTTP requests received
 # TYPE dontwasteit_requests_total counter
 dontwasteit_requests_total ${requestCounter}
@@ -107,11 +113,17 @@ dontwasteit_uptime_seconds ${uptime}
 # HELP dontwasteit_memory_heap_bytes Memory heap used in bytes
 # TYPE dontwasteit_memory_heap_bytes gauge
 dontwasteit_memory_heap_bytes ${memory.heapUsed}
-  `.trim();
+    `.trim();
 
-  res.setHeader('Content-Type', 'text/plain');
-  res.send(metrics);
-});
+    res.setHeader('Content-Type', register.contentType);
+    res.send(`${promMetrics}\n\n${legacyMetrics}\n`);
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+};
+
+app.get('/metrics', serveMetrics);
+app.get('/api/metrics', serveMetrics);
 
 // Root route
 app.get('/', (req, res) => {

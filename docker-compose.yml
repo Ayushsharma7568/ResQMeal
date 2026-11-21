@@ -61,6 +61,42 @@ services:
     networks:
       - app-network
 
+  # ----------------------------------------------------
+  # Prometheus Metrics Scraper
+  # ----------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: morsl_prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+  # ----------------------------------------------------
+  # Grafana Observability Dashboards
+  # ----------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: morsl_grafana
+    restart: always
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: bridge

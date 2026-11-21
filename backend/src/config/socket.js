@@ -1,4 +1,5 @@
 import { Server } from 'socket.io';
+import { activeWebSocketConnections } from '../services/metrics.js';
 
 let ioInstance = null;
 
@@ -27,9 +28,11 @@ export const initSocket = (httpServer, allowedOrigins = []) => {
   });
 
   ioInstance.on('connection', (socket) => {
+    activeWebSocketConnections.inc();
     console.log(`🔌 Socket connected: ${socket.id}`);
 
     socket.on('disconnect', (reason) => {
+      activeWebSocketConnections.dec();
       console.log(`🔌 Socket disconnected (${socket.id}): ${reason}`);
     });
   });
